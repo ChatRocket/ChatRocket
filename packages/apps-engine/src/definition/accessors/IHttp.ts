@@ -215,4 +215,6 @@ export interface IHttpRetryConfig {
     maxAttempts?: number;
     /** Initial delay in milliseconds before first retry */
     initialDelay?: number;
+    /** Status codes that trigger a retry */
+    statusCodesToRetry?: HttpStatusCode[];
 }
