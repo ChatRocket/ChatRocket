@@ -1,4 +1,4 @@
-import '../models/startup';
+import '../models';
 
 import { performMigrationProcedure } from './migrations';
 
