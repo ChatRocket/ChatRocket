@@ -1,7 +1,6 @@
 import { api } from '@rocket.chat/core-services';
 import { License } from '@rocket.chat/license';
 
-import { settings } from '../../../app/settings/server/cached';
 import { isRunningMs } from '../../../server/lib/isRunningMs';
 import { FederationService } from '../../../server/services/federation/service';
 import { LicenseService } from '../../app/license/server/license.internalService';
