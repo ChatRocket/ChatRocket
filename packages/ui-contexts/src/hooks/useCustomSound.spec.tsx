@@ -21,7 +21,6 @@ const wrapper = ({ children }: { children: ReactNode }) => <CustomSoundContext.P
 describe('useCustomSound', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
-		document.body.innerHTML = '';
 	});
 
 	it('should provide sound control methods', () => {
