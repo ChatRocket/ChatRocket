@@ -5,8 +5,16 @@ import { RoomType } from '@rocket.chat/apps-engine/definition/rooms';
 import type { IUser } from '@rocket.chat/apps-engine/definition/users';
 import type { GetMessagesOptions } from '@rocket.chat/apps-engine/server/bridges/RoomBridge';
 import { RoomBridge } from '@rocket.chat/apps-engine/server/bridges/RoomBridge';
-import type { ISubscription, IUser as ICoreUser, IRoom as ICoreRoom, IMessage as ICoreMessage } from '@rocket.chat/core-typings';
+import { isOmnichannelRoom } from '@rocket.chat/core-typings';
+import {
+	type IOmnichannelRoom,
+	type ISubscription,
+	type IUser as ICoreUser,
+	type IRoom as ICoreRoom,
+	type IMessage as ICoreMessage,
+} from '@rocket.chat/core-typings';
 import { Subscriptions, Users, Rooms, Messages } from '@rocket.chat/models';
+import _ from 'lodash';
 import type { FindOptions, Sort } from 'mongodb';
 
 import { createDirectMessage } from '../../../../server/methods/createDirectMessage';
@@ -157,14 +165,53 @@ export class AppRoomBridge extends RoomBridge {
 		return this.orch.getConverters()?.get('rooms').convertRoom(room);
 	}
 
+	private checkOmniRoomStatePropertiesChanged(room: IOmnichannelRoom, originalRoom: IOmnichannelRoom, appId: string): ICoreRoom {
+		if (originalRoom.open !== room.open) {
+			this.orch.debugLog(`The App ${appId} attempted to change the open state of the room while updating room`);
+			room.open = originalRoom.open;
+		}
+
+		if (originalRoom.t !== room.t) {
+			this.orch.debugLog(`The App ${appId} attempted to change the type of the room while updating room`);
+			room.t = originalRoom.t;
+		}
+
+		if (!_.isEqual(originalRoom.servedBy, room.servedBy)) {
+			this.orch.debugLog(`The App ${appId} attempted to change the servedBy of the room while updating room`);
+			room.servedBy = originalRoom.servedBy;
+		}
+
+		if (!_.isEqual(originalRoom.closer, room.closer)) {
+			this.orch.debugLog(`The App ${appId} attempted to change the closer of the room while updating room`);
+			room.closer = originalRoom.closer;
+		}
+
+		if (!_.isEqual(originalRoom.closedAt, room.closedAt)) {
+			this.orch.debugLog(`The App ${appId} attempted to change the closedAt of the room while updating room`);
+			room.closedAt = originalRoom.closedAt;
+		}
+
+		return room;
+	}
+
 	protected async update(room: IRoom, members: Array<string> = [], appId: string): Promise<void> {
 		this.orch.debugLog(`The App ${appId} is updating a room.`);
-
-		if (!room.id || !(await Rooms.findOneById(room.id))) {
+		if (!room.id) {
 			throw new Error('A room must exist to update.');
 		}
 
-		const rm = await this.orch.getConverters()?.get('rooms').convertAppRoom(room);
+		const originalRoom = await Rooms.findOneById(room.id);
+		if (!originalRoom) {
+			throw new Error('The room to update does not exist.');
+		}
+
+		this.orch.debugLog(`The App ${appId} is updating room with id: "${room.id}"`);
+		let rm = await this.orch.getConverters()?.get('rooms').convertAppRoom(room);
+
+		if (isOmnichannelRoom(originalRoom)) {
+			// We shouldn't allow to mess up with a room's closed state via apps. Only via livechat bridge
+			rm = this.checkOmniRoomStatePropertiesChanged(rm as IOmnichannelRoom, originalRoom, appId);
+		}
 
 		await Rooms.updateOne({ _id: rm._id }, { $set: rm as Partial<ICoreRoom> });
 
