@@ -1,7 +1,7 @@
 import type { IRoom } from '@rocket.chat/core-typings';
 import { useUserId } from '@rocket.chat/ui-contexts';
 
-import { useRoom } from './contexts/RoomContext';
+import { useRoles, useRoom } from './contexts/RoomContext';
 import { useRoomToolbox } from './contexts/RoomToolboxContext';
 import RoomMembers from './contextualBar/RoomMembers';
 import UserInfo from './contextualBar/UserInfo';
@@ -21,13 +21,15 @@ const getUid = (room: IRoom, ownUserId: string | null) => {
 const MemberListRouter = () => {
 	const { tab, context: username } = useRoomToolbox();
 	const room = useRoom();
+	const roles = useRoles();
+	console.log('roles fetched from the newly made hook ', roles);
 	const { closeTab } = useRoomToolbox();
 	const ownUserId = useUserId();
-
+	console.log('own user id: ', ownUserId);
 	const isMembersList = tab?.id === 'members-list' || tab?.id === 'user-info-group';
 
 	if (isMembersList && !username) {
-		return <RoomMembers rid={room._id} />;
+		return <RoomMembers rid={room._id} roles={roles} />;
 	}
 
 	return <UserInfo {...(username ? { username } : { uid: getUid(room, ownUserId) })} onClose={closeTab} rid={room._id} />;

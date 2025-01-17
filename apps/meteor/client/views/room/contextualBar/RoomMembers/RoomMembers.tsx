@@ -21,7 +21,9 @@ import {
 import { VirtuosoScrollbars } from '../../../../components/CustomScrollbars';
 import InfiniteListAnchor from '../../../../components/InfiniteListAnchor';
 
-type RoomMemberUser = Pick<IUser, 'username' | '_id' | 'name' | 'status' | 'freeSwitchExtension'>;
+type RoomMemberUser = Pick<IUser, 'username' | '_id' | 'name' | 'status' | 'freeSwitchExtension'> & {
+	roles: string[];
+};
 
 type RoomMembersProps = {
 	rid: IRoom['_id'];

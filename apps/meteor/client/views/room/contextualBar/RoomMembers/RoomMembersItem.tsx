@@ -9,6 +9,7 @@ import {
 	Icon,
 	IconButton,
 	OptionSkeleton,
+	Box,
 } from '@rocket.chat/fuselage';
 import { usePrefersReducedMotion } from '@rocket.chat/fuselage-hooks';
 import { UserAvatar } from '@rocket.chat/ui-avatar';
@@ -25,12 +26,14 @@ type RoomMembersItemProps = {
 	rid: IRoom['_id'];
 	reload: () => void;
 	useRealName: boolean;
+	roles: string[];
 } & Pick<IUser, 'federated' | 'username' | 'name' | '_id' | 'freeSwitchExtension'>;
 
 const RoomMembersItem = ({
 	_id,
 	name,
 	username,
+	roles,
 	federated,
 	freeSwitchExtension,
 	onClickView,
@@ -57,6 +60,9 @@ const RoomMembersItem = ({
 			<OptionColumn>{federated ? <Icon name='globe' size='x16' /> : <ReactiveUserStatus uid={_id} />}</OptionColumn>
 			<OptionContent data-qa={`MemberItem-${username}`}>
 				{nameOrUsername} {displayUsername && <OptionDescription>({displayUsername})</OptionDescription>}
+				<Box fontScale='c2' color='hint'>
+					{roles.length > 0 ? roles.join(', ') : 'no roles assigned'}
+				</Box>
 			</OptionContent>
 			<OptionMenu onClick={preventPropagation}>
 				{showButton ? (

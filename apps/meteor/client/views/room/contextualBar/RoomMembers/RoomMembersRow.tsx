@@ -5,7 +5,9 @@ import { memo } from 'react';
 import RoomMembersItem from './RoomMembersItem';
 
 type RoomMembersRowProps = {
-	user: Pick<IUser, 'federated' | 'username' | 'name' | '_id' | 'freeSwitchExtension'>;
+	user: Pick<IUser, 'federated' | 'username' | 'name' | '_id' | 'freeSwitchExtension'> & {
+		roles: string[];
+	};
 	data: {
 		onClickView: (e: MouseEvent<HTMLElement>) => void;
 		rid: IRoom['_id'];
@@ -30,6 +32,7 @@ const RoomMembersRow = ({ user, data: { onClickView, rid }, index, reload, useRe
 			name={user.name}
 			federated={user.federated}
 			freeSwitchExtension={user.freeSwitchExtension}
+			roles={user.roles}
 			onClickView={onClickView}
 			reload={reload}
 		/>

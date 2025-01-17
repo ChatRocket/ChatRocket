@@ -22,7 +22,7 @@ enum ROOM_MEMBERS_TABS {
 
 type validRoomType = 'd' | 'p' | 'c';
 
-const RoomMembersWithData = ({ rid }: { rid: IRoom['_id'] }): ReactElement => {
+const RoomMembersWithData = ({ rid, roles }: { rid: IRoom['_id']; roles: { userIds: string[]; role: string }[] }): ReactElement => {
 	const user = useUser();
 	const room = useUserRoom(rid);
 	const { closeTab } = useRoomToolbox();
@@ -102,7 +102,14 @@ const RoomMembersWithData = ({ rid }: { rid: IRoom['_id'] }): ReactElement => {
 			text={text}
 			setText={handleTextChange}
 			setType={setType}
-			members={data?.pages?.flatMap((page) => page.members) ?? []}
+			members={
+				data?.pages?.flatMap((page) =>
+					page.members.map((member) => ({
+						...member,
+						roles: roles.filter((role) => role.userIds.includes(member._id)).map((role) => role.role),
+					})),
+				) ?? []
+			}
 			total={data?.pages[data.pages.length - 1].total ?? 0}
 			onClickClose={closeTab}
 			onClickView={openUserInfo}
