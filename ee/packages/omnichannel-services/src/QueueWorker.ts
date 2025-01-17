@@ -11,18 +11,22 @@ export class QueueWorker extends ServiceClass implements IQueueWorkerService {
 	protected retryCount = 5;
 
 	// Default delay is 5 seconds
-	protected retryDelay = 5000;
+	protected retryDelay = Number(process.env.RETRY_DELAY) || 5000;
 
 	protected queue: MessageQueue;
 
 	private logger: Logger;
 
-	constructor(private readonly db: Db, loggerClass: typeof Logger) {
+	constructor(
+		private readonly db: Db,
+		loggerClass: typeof Logger,
+	) {
 		super();
 
 		// eslint-disable-next-line new-cap
 		this.logger = new loggerClass('QueueWorker');
 		this.queue = new MessageQueue();
+		this.queue.pollingInterval = Number(process.env.POLLING_INTERVAL) || 5000;
 	}
 
 	isServiceNotFoundMessage(message: string): boolean {
@@ -34,14 +38,13 @@ export class QueueWorker extends ServiceClass implements IQueueWorkerService {
 	}
 
 	async created(): Promise<void> {
-		this.logger.info('Starting queue worker');
 		this.queue.databasePromise = () => {
 			return Promise.resolve(this.db);
 		};
 
 		try {
-			await this.registerWorkers();
 			await this.createIndexes();
+			this.registerWorkers();
 		} catch (e) {
 			this.logger.fatal(e, 'Fatal error occurred when registering workers');
 			process.exit(1);
@@ -51,7 +54,7 @@ export class QueueWorker extends ServiceClass implements IQueueWorkerService {
 	async createIndexes(): Promise<void> {
 		this.logger.info('Creating indexes for queue worker');
 
-		// Library doesnt create indexes by itself, for some reason
+		// Library doesn't create indexes by itself, for some reason
 		// This should create the indexes we need and improve queue perf on reading
 		await this.db.collection(this.queue.collectionName).createIndex({ type: 1 });
 		await this.db.collection(this.queue.collectionName).createIndex({ rejectedTime: 1 }, { sparse: true });
@@ -75,7 +78,7 @@ export class QueueWorker extends ServiceClass implements IQueueWorkerService {
 		this.logger.info(`Processing queue item ${queueItem._id} for work`);
 		this.logger.info(`Queue item is trying to call ${queueItem.message.to}`);
 		try {
-			await api.waitAndCall(queueItem.message.to, [queueItem.message]);
+			await api.call(queueItem.message.to, [queueItem.message]);
 			this.logger.info(`Queue item ${queueItem._id} completed`);
 			return 'Completed' as const;
 		} catch (err: unknown) {
@@ -95,7 +98,7 @@ export class QueueWorker extends ServiceClass implements IQueueWorkerService {
 	}
 
 	// Registers the actual workers, the actions lib will try to fetch elements to work on
-	private async registerWorkers(): Promise<void> {
+	private registerWorkers(): void {
 		this.logger.info('Registering workers of type "work"');
 		this.queue.registerWorker('work', this.workerCallback.bind(this));
 

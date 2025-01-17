@@ -1,16 +1,15 @@
 import type { ILivechatBusinessHour, LivechatBusinessHourTypes, Serialized } from '@rocket.chat/core-typings';
 import { Box, Button, ButtonGroup } from '@rocket.chat/fuselage';
-import { useMutableCallback, useUniqueId } from '@rocket.chat/fuselage-hooks';
+import { useEffectEvent, useUniqueId } from '@rocket.chat/fuselage-hooks';
 import { useToastMessageDispatch, useMethod, useTranslation, useRouter } from '@rocket.chat/ui-contexts';
-import React from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 
-import { useRemoveBusinessHour } from '../../../../ee/client/omnichannel/businessHours/useRemoveBusinessHour';
-import { Page, PageFooter, PageHeader, PageScrollableContentWithShadow } from '../../../components/Page';
 import type { BusinessHoursFormData } from './BusinessHoursForm';
 import BusinessHoursForm from './BusinessHoursForm';
 import { defaultWorkHours } from './mapBusinessHoursForm';
 import { useIsSingleBusinessHours } from './useIsSingleBusinessHours';
+import { Page, PageFooter, PageHeader, PageScrollableContentWithShadow } from '../../../components/Page';
+import { useRemoveBusinessHour } from '../../../omnichannel/businessHours/useRemoveBusinessHour';
 
 const getInitialData = (businessHourData: Serialized<ILivechatBusinessHour> | undefined) => ({
 	name: businessHourData?.name || '',
@@ -51,7 +50,7 @@ const EditBusinessHours = ({ businessHourData, type }: EditBusinessHoursProps) =
 		formState: { isDirty },
 	} = methods;
 
-	const handleSave = useMutableCallback(async ({ departments, ...data }: BusinessHoursFormData) => {
+	const handleSave = useEffectEvent(async ({ departments, ...data }: BusinessHoursFormData) => {
 		const departmentsToApplyBusinessHour = departments?.map((dep) => dep.value).join(',') || '';
 
 		try {

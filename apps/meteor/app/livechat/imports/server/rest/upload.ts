@@ -11,19 +11,27 @@ import { sendFileLivechatMessage } from '../../../server/methods/sendFileLivecha
 API.v1.addRoute('livechat/upload/:rid', {
 	async post() {
 		if (!this.request.headers['x-visitor-token']) {
-			return API.v1.unauthorized();
+			return API.v1.forbidden();
+		}
+
+		const canUpload = settings.get<boolean>('Livechat_fileupload_enabled') && settings.get<boolean>('FileUpload_Enabled');
+
+		if (!canUpload) {
+			return API.v1.failure({
+				reason: 'error-file-upload-disabled',
+			});
 		}
 
 		const visitorToken = this.request.headers['x-visitor-token'];
 		const visitor = await LivechatVisitors.getVisitorByToken(visitorToken as string, {});
 
 		if (!visitor) {
-			return API.v1.unauthorized();
+			return API.v1.forbidden();
 		}
 
 		const room = await LivechatRooms.findOneOpenByRoomIdAndVisitorToken(this.urlParams.rid, visitorToken as string);
 		if (!room) {
-			return API.v1.unauthorized();
+			return API.v1.forbidden();
 		}
 
 		const maxFileSize = settings.get<number>('FileUpload_MaxFileSize') || 104857600;

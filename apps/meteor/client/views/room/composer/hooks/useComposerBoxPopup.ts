@@ -1,11 +1,11 @@
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
+import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { MutableRefObject } from 'react';
 import { useEffect, useCallback, useState, useRef } from 'react';
 
+import { useComposerBoxPopupQueries } from './useComposerBoxPopupQueries';
 import { useChat } from '../../contexts/ChatContext';
 import type { ComposerPopupOption } from '../../contexts/ComposerPopupContext';
-import { useComposerBoxPopupQueries } from './useComposerBoxPopupQueries';
 
 type ComposerBoxPopupImperativeCommands<T> = MutableRefObject<
 	| {
@@ -91,7 +91,7 @@ export const useComposerBoxPopup = <T extends { _id: string; sort?: number }>({
 		});
 	}, [items, popup, suspended]);
 
-	const select = useMutableCallback((item: T) => {
+	const select = useEffectEvent((item: T) => {
 		if (!popup) {
 			throw new Error('No popup is open');
 		}
@@ -118,7 +118,7 @@ export const useComposerBoxPopup = <T extends { _id: string; sort?: number }>({
 		setFocused(undefined);
 	});
 
-	const setConfigByInput = useMutableCallback((): ComposerBoxPopupOptions<T> | undefined => {
+	const setConfigByInput = useEffectEvent((): ComposerBoxPopupOptions<T> | undefined => {
 		const value = chat?.composer?.substring(0, chat?.composer?.selection.start);
 
 		if (!value) {
@@ -155,14 +155,14 @@ export const useComposerBoxPopup = <T extends { _id: string; sort?: number }>({
 		return configuration;
 	});
 
-	const onFocus = useMutableCallback(() => {
+	const onFocus = useEffectEvent(() => {
 		if (popup) {
 			return;
 		}
 		setConfigByInput();
 	});
 
-	const keyup = useMutableCallback((event: KeyboardEvent) => {
+	const keyup = useEffectEvent((event: KeyboardEvent) => {
 		if (!setConfigByInput()) {
 			return;
 		}
@@ -175,11 +175,11 @@ export const useComposerBoxPopup = <T extends { _id: string; sort?: number }>({
 			setPopup(undefined);
 			setFocused(undefined);
 			event.preventDefault();
-			event.stopPropagation();
+			event.stopImmediatePropagation();
 		}
 	});
 
-	const keydown = useMutableCallback((event: KeyboardEvent) => {
+	const keydown = useEffectEvent((event: KeyboardEvent) => {
 		if (!popup) {
 			return;
 		}
@@ -192,7 +192,7 @@ export const useComposerBoxPopup = <T extends { _id: string; sort?: number }>({
 			select(focused);
 
 			event.preventDefault();
-			event.stopPropagation();
+			event.stopImmediatePropagation();
 			return true;
 		}
 		if (event.which === keys.ARROW_UP && !(event.shiftKey || event.ctrlKey || event.altKey || event.metaKey)) {
@@ -211,7 +211,7 @@ export const useComposerBoxPopup = <T extends { _id: string; sort?: number }>({
 				return (focusedIndex > 0 ? list[focusedIndex - 1] : list[list.length - 1]) as T;
 			});
 			event.preventDefault();
-			event.stopPropagation();
+			event.stopImmediatePropagation();
 			return true;
 		}
 		if (event.which === keys.ARROW_DOWN && !(event.shiftKey || event.ctrlKey || event.altKey || event.metaKey)) {
@@ -230,12 +230,12 @@ export const useComposerBoxPopup = <T extends { _id: string; sort?: number }>({
 				return (focusedIndex < list.length - 1 ? list[focusedIndex + 1] : list[0]) as T;
 			});
 			event.preventDefault();
-			event.stopPropagation();
+			event.stopImmediatePropagation();
 			return true;
 		}
 	});
 
-	const clearPopup = useMutableCallback(() => {
+	const clearPopup = useEffectEvent(() => {
 		if (!popup) {
 			return;
 		}

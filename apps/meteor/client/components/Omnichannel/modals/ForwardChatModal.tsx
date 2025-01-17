@@ -10,33 +10,46 @@ import {
 	Divider,
 	FieldLabel,
 	FieldRow,
+	Option,
 } from '@rocket.chat/fuselage';
 import { useDebouncedValue } from '@rocket.chat/fuselage-hooks';
-import { useEndpoint, useSetting, useTranslation } from '@rocket.chat/ui-contexts';
+import { useEndpoint, useSetting } from '@rocket.chat/ui-contexts';
 import type { ReactElement } from 'react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 
 import { useRecordList } from '../../../hooks/lists/useRecordList';
 import { AsyncStatePhase } from '../../../hooks/useAsyncState';
 import AutoCompleteAgent from '../../AutoCompleteAgent';
 import { useDepartmentsList } from '../hooks/useDepartmentsList';
 
-const ForwardChatModal = ({
-	onForward,
-	onCancel,
-	room,
-	...props
-}: {
+type ForwardChatModalFormData = {
+	comment: string;
+	department: string;
+	username: string;
+};
+
+type ForwardChatModalProps = {
 	onForward: (departmentId?: string, userId?: string, comment?: string) => Promise<void>;
 	onCancel: () => void;
 	room: IOmnichannelRoom;
-}): ReactElement => {
-	const t = useTranslation();
-	const getUserData = useEndpoint('GET', '/v1/users.info');
-	const idleAgentsAllowedForForwarding = useSetting('Livechat_enabled_when_agent_idle') as boolean;
+};
 
-	const { getValues, handleSubmit, register, setFocus, setValue, watch } = useForm();
+const ForwardChatModal = ({ onForward, onCancel, room, ...props }: ForwardChatModalProps): ReactElement => {
+	const { t } = useTranslation();
+	const getUserData = useEndpoint('GET', '/v1/users.info');
+	const idleAgentsAllowedForForwarding = useSetting('Livechat_enabled_when_agent_idle', true);
+
+	const {
+		getValues,
+		handleSubmit,
+		register,
+		setFocus,
+		setValue,
+		watch,
+		formState: { isSubmitting },
+	} = useForm<ForwardChatModalFormData>();
 
 	useEffect(() => {
 		setFocus('comment');
@@ -54,7 +67,7 @@ const ForwardChatModal = ({
 	const { phase: departmentsPhase, items: departments, itemCount: departmentsTotal } = useRecordList(departmentsList);
 
 	const endReached = useCallback(
-		(start) => {
+		(start: number) => {
 			if (departmentsPhase !== AsyncStatePhase.LOADING) {
 				loadMoreDepartments(start, Math.min(50, departmentsTotal));
 			}
@@ -63,7 +76,7 @@ const ForwardChatModal = ({
 	);
 
 	const onSubmit = useCallback(
-		async ({ department: departmentId, username, comment }) => {
+		async ({ department: departmentId, username, comment }: ForwardChatModalFormData) => {
 			let uid;
 
 			if (username) {
@@ -71,7 +84,7 @@ const ForwardChatModal = ({
 				uid = user?._id;
 			}
 
-			onForward(departmentId, uid, comment);
+			await onForward(departmentId, uid, comment);
 		},
 		[getUserData, onForward],
 	);
@@ -98,7 +111,7 @@ const ForwardChatModal = ({
 						<FieldLabel>{t('Forward_to_department')}</FieldLabel>
 						<FieldRow>
 							<PaginatedSelectFiltered
-								withTitle
+								withTitle={false}
 								filter={departmentsFilter as string}
 								setFilter={setDepartmentsFilter}
 								options={departments}
@@ -110,6 +123,7 @@ const ForwardChatModal = ({
 								}}
 								flexGrow={1}
 								endReached={endReached}
+								renderItem={({ label, ...props }) => <Option {...props} label={<span style={{ whiteSpace: 'normal' }}>{label}</span>} />}
 							/>
 						</FieldRow>
 					</Field>
@@ -146,7 +160,7 @@ const ForwardChatModal = ({
 			<Modal.Footer>
 				<Modal.FooterControllers>
 					<Button onClick={onCancel}>{t('Cancel')}</Button>
-					<Button type='submit' disabled={!username && !department} primary>
+					<Button type='submit' disabled={!username && !department} primary loading={isSubmitting}>
 						{t('Forward')}
 					</Button>
 				</Modal.FooterControllers>

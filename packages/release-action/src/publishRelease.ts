@@ -4,12 +4,13 @@ import path from 'path';
 import * as core from '@actions/core';
 import { exec } from '@actions/exec';
 import * as github from '@actions/github';
+import semver from 'semver';
 
 import { createNpmFile } from './createNpmFile';
 import { fixWorkspaceVersionsBeforePublish } from './fixWorkspaceVersionsBeforePublish';
 import { checkoutBranch, commitChanges, createTag, getCurrentBranch, mergeBranch, pushChanges } from './gitUtils';
 import { setupOctokit } from './setupOctokit';
-import { bumpFileVersions, createBumpFile, getChangelogEntry, getEngineVersionsMd, readPackageJson } from './utils';
+import { bumpFileVersions, createBumpFile, getChangelogEntry, getEngineVersionsMd, isPreRelease, readPackageJson } from './utils';
 
 export async function publishRelease({
 	githubToken,
@@ -35,20 +36,9 @@ export async function publishRelease({
 
 	const { version: currentVersion } = await readPackageJson(cwd);
 
-	if (mergeFinal) {
-		let preRelease = false;
-		try {
-			fs.accessSync(path.resolve(cwd, '.changeset', 'pre.json'));
-
-			preRelease = true;
-		} catch (e) {
-			// nothing to do, not a pre release
-		}
-
-		if (preRelease) {
-			// finish release candidate
-			await exec('yarn', ['changeset', 'pre', 'exit']);
-		}
+	if (mergeFinal && isPreRelease(cwd)) {
+		// finish release candidate
+		await exec('yarn', ['changeset', 'pre', 'exit']);
 	}
 
 	const { name: mainPkgName } = await readPackageJson(mainPackagePath);
@@ -98,12 +88,19 @@ export async function publishRelease({
 
 	await pushChanges();
 
+	const { data: latestRelease } = await octokit.rest.repos.getLatestRelease({
+		...github.context.repo,
+	});
+
+	core.info(`latest release tag: ${latestRelease.tag_name}`);
+
 	core.info('create release');
 	await octokit.rest.repos.createRelease({
 		name: newVersion,
 		tag_name: newVersion,
 		body: releaseBody,
 		prerelease: newVersion.includes('-'),
+		make_latest: semver.gt(newVersion, latestRelease.tag_name) ? 'true' : 'false',
 		...github.context.repo,
 	});
 }

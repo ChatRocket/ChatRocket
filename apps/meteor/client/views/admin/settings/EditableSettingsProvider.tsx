@@ -1,29 +1,31 @@
-import type { SettingId, GroupId, ISetting, TabId } from '@rocket.chat/core-typings';
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
+import type { ISetting } from '@rocket.chat/core-typings';
+import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
 import type { SettingsContextQuery } from '@rocket.chat/ui-contexts';
 import { useSettings } from '@rocket.chat/ui-contexts';
 import { Mongo } from 'meteor/mongo';
 import { Tracker } from 'meteor/tracker';
 import type { FilterOperators } from 'mongodb';
-import type { FunctionComponent, MutableRefObject } from 'react';
-import React, { useEffect, useMemo, useRef } from 'react';
+import type { MutableRefObject, ReactNode } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
-import { useIsEnterprise } from '../../../hooks/useIsEnterprise';
 import { createReactiveSubscriptionFactory } from '../../../lib/createReactiveSubscriptionFactory';
 import type { EditableSetting, EditableSettingsContextValue } from '../EditableSettingsContext';
 import { EditableSettingsContext } from '../EditableSettingsContext';
 
 const defaultQuery: SettingsContextQuery = {};
+const defaultOmit: Array<ISetting['_id']> = [];
 
 type EditableSettingsProviderProps = {
-	readonly query?: SettingsContextQuery;
+	children?: ReactNode;
+	query?: SettingsContextQuery;
+	omit?: Array<ISetting['_id']>;
 };
 
-const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps> = ({ children, query = defaultQuery }) => {
+const EditableSettingsProvider = ({ children, query = defaultQuery, omit = defaultOmit }: EditableSettingsProviderProps) => {
 	const settingsCollectionRef = useRef<Mongo.Collection<EditableSetting>>(null) as MutableRefObject<Mongo.Collection<EditableSetting>>;
 	const persistedSettings = useSettings(query);
 
-	const getSettingsCollection = useMutableCallback(() => {
+	const getSettingsCollection = useEffectEvent(() => {
 		if (!settingsCollectionRef.current) {
 			settingsCollectionRef.current = new Mongo.Collection<any>(null);
 		}
@@ -38,7 +40,13 @@ const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps>
 		for (const { _id, ...fields } of persistedSettings) {
 			settingsCollection.upsert(_id, { $set: { ...fields }, $unset: { changed: true } });
 		}
-	}, [getSettingsCollection, persistedSettings]);
+		// TODO: Remove option to omit settings from admin pages manually
+		// This is a very wacky workaround due to lack of support to omit settings from the
+		// admin settings page while keeping them public.
+		if (omit.length > 0) {
+			settingsCollection.remove({ _id: { $in: omit } });
+		}
+	}, [getSettingsCollection, persistedSettings, omit]);
 
 	const queryEditableSetting = useMemo(() => {
 		const validateSettingQueries = (
@@ -53,7 +61,7 @@ const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps>
 			return queries.every((query) => settingsCollection.find(query).count() > 0);
 		};
 
-		return createReactiveSubscriptionFactory((_id: SettingId): EditableSetting | undefined => {
+		return createReactiveSubscriptionFactory((_id: ISetting['_id']): EditableSetting | undefined => {
 			const settingsCollection = getSettingsCollection();
 			const editableSetting = settingsCollection.findOne(_id);
 
@@ -85,7 +93,7 @@ const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps>
 											? { section: query.section }
 											: {
 													$or: [{ section: { $exists: false } }, { section: '' }],
-											  })),
+												})),
 								},
 								{
 									...('tab' in query &&
@@ -93,7 +101,7 @@ const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps>
 											? { tab: query.tab }
 											: {
 													$or: [{ tab: { $exists: false } }, { tab: '' }],
-											  })),
+												})),
 								},
 							],
 						},
@@ -112,7 +120,7 @@ const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps>
 
 	const queryGroupSections = useMemo(
 		() =>
-			createReactiveSubscriptionFactory((_id: GroupId, tab?: TabId) =>
+			createReactiveSubscriptionFactory((_id: ISetting['_id'], tab?: ISetting['_id']) =>
 				Array.from(
 					new Set(
 						getSettingsCollection()
@@ -123,7 +131,7 @@ const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps>
 										? { tab }
 										: {
 												$or: [{ tab: { $exists: false } }, { tab: '' }],
-										  }),
+											}),
 								},
 								{
 									fields: {
@@ -146,7 +154,7 @@ const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps>
 
 	const queryGroupTabs = useMemo(
 		() =>
-			createReactiveSubscriptionFactory((_id: GroupId) =>
+			createReactiveSubscriptionFactory((_id: ISetting['_id']) =>
 				Array.from(
 					new Set(
 						getSettingsCollection()
@@ -173,7 +181,7 @@ const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps>
 		[getSettingsCollection],
 	);
 
-	const dispatch = useMutableCallback((changes: Partial<EditableSetting>[]): void => {
+	const dispatch = useEffectEvent((changes: Partial<EditableSetting>[]): void => {
 		for (const { _id, ...data } of changes) {
 			if (!_id) {
 				continue;
@@ -184,10 +192,6 @@ const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps>
 		Tracker.flush();
 	});
 
-	const { data } = useIsEnterprise();
-
-	const isEnterprise = data?.isEnterprise ?? false;
-
 	const contextValue = useMemo<EditableSettingsContextValue>(
 		() => ({
 			queryEditableSetting,
@@ -195,9 +199,8 @@ const EditableSettingsProvider: FunctionComponent<EditableSettingsProviderProps>
 			queryGroupSections,
 			queryGroupTabs,
 			dispatch,
-			isEnterprise,
 		}),
-		[queryEditableSetting, queryEditableSettings, queryGroupSections, queryGroupTabs, dispatch, isEnterprise],
+		[queryEditableSetting, queryEditableSettings, queryGroupSections, queryGroupTabs, dispatch],
 	);
 
 	return <EditableSettingsContext.Provider children={children} value={contextValue} />;

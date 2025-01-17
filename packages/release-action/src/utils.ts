@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { readFile, writeFile } from 'fs/promises';
 import path from 'path';
 
@@ -108,7 +109,7 @@ Bump ${pkgName} version.
 
 export async function getEngineVersionsMd(cwd: string) {
 	const { node } = await getNodeNpmVersions(cwd);
-	const appsEngine = await getAppsEngineVersion();
+	const appsEngine = await getAppsEngineVersion(cwd);
 	const mongo = await getMongoVersion(cwd);
 
 	return `### Engine versions
@@ -118,4 +119,29 @@ export async function getEngineVersionsMd(cwd: string) {
 - Apps-Engine: \`${appsEngine}\`
 
 `;
+}
+
+export function isPreRelease(cwd: string) {
+	try {
+		fs.accessSync(path.resolve(cwd, '.changeset', 'pre.json'));
+
+		return true;
+	} catch (e) {
+		// nothing to do, not a pre release
+	}
+
+	return false;
+}
+
+export function createTempReleaseNotes(version: string, releaseBody: string) {
+	return `
+<!-- release-notes-start -->
+<!-- This content is automatically generated. Changing this will not reflect on the final release log -->
+
+_You can see below a preview of the release change log:_
+
+# ${version}
+
+${releaseBody}
+<!-- release-notes-end -->`;
 }

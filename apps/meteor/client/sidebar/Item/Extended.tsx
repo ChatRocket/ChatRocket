@@ -1,29 +1,29 @@
 import { Sidebar, IconButton } from '@rocket.chat/fuselage';
-import { useMutableCallback, usePrefersReducedMotion } from '@rocket.chat/fuselage-hooks';
+import { usePrefersReducedMotion } from '@rocket.chat/fuselage-hooks';
 import type { Keys as IconName } from '@rocket.chat/icons';
-import type { VFC } from 'react';
-import React, { memo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { memo, useState } from 'react';
 
 import { useShortTimeAgo } from '../../hooks/useTimeAgo';
 
 type ExtendedProps = {
 	icon?: IconName;
-	title?: React.ReactNode;
-	avatar?: React.ReactNode | boolean;
-	actions?: React.ReactNode;
+	title?: ReactNode;
+	avatar?: ReactNode;
+	actions?: ReactNode;
 	href?: string;
 	time?: any;
-	menu?: () => React.ReactNode;
-	subtitle?: React.ReactNode;
-	badges?: React.ReactNode;
+	menu?: () => ReactNode;
+	subtitle?: ReactNode;
+	badges?: ReactNode;
 	unread?: boolean;
 	selected?: boolean;
 	menuOptions?: any;
-	titleIcon?: React.ReactNode;
+	titleIcon?: ReactNode;
 	threadUnread?: boolean;
 };
 
-const Extended: VFC<ExtendedProps> = ({
+const Extended = ({
 	icon,
 	title = '',
 	avatar,
@@ -39,18 +39,13 @@ const Extended: VFC<ExtendedProps> = ({
 	unread,
 	selected,
 	...props
-}) => {
+}: ExtendedProps) => {
 	const formatDate = useShortTimeAgo();
 	const [menuVisibility, setMenuVisibility] = useState(!!window.DISABLE_ANIMATION);
-
 	const isReduceMotionEnabled = usePrefersReducedMotion();
 
-	const handleMenu = useMutableCallback((e) => {
-		setMenuVisibility(e.target.offsetWidth > 0 && Boolean(menu));
-	});
-
 	const handleMenuEvent = {
-		[isReduceMotionEnabled ? 'onMouseEnter' : 'onTransitionEnd']: handleMenu,
+		[isReduceMotionEnabled ? 'onMouseEnter' : 'onTransitionEnd']: setMenuVisibility,
 	};
 
 	return (

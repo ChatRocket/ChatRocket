@@ -1,9 +1,9 @@
 import type { IUser, IMessage, ReadReceipt, RocketChatRecordDeleted } from '@rocket.chat/core-typings';
 import type { IReadReceiptsModel } from '@rocket.chat/model-typings';
+import { BaseRaw } from '@rocket.chat/models';
 import type { Collection, FindCursor, Db, IndexDescription, DeleteResult, Filter, UpdateResult, Document } from 'mongodb';
 
 import { otrSystemMessages } from '../../../../app/otr/lib/constants';
-import { BaseRaw } from '../../../../server/models/raw/BaseRaw';
 
 export class ReadReceiptsRaw extends BaseRaw<ReadReceipt> implements IReadReceiptsModel {
 	constructor(db: Db, trash?: Collection<RocketChatRecordDeleted<ReadReceipt>>) {
@@ -51,7 +51,7 @@ export class ReadReceiptsRaw extends BaseRaw<ReadReceipt> implements IReadReceip
 			},
 			ts: { $lte: until },
 		};
-		return this.deleteMany(query);
+		return this.col.deleteMany(query);
 	}
 
 	async removeByIdPinnedTimestampLimitAndUsers(

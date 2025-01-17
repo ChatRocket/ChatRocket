@@ -2,7 +2,6 @@ import type { UserStatus, IUser } from '@rocket.chat/core-typings';
 import { escapeRegExp } from '@rocket.chat/string-helpers';
 import type { LocationPathname } from '@rocket.chat/ui-contexts';
 import { Meteor } from 'meteor/meteor';
-import { ServiceConfiguration } from 'meteor/service-configuration';
 
 import { settings } from '../../app/settings/client';
 import { AccountBox } from '../../app/ui-utils/client/lib/AccountBox';
@@ -10,6 +9,7 @@ import { sdk } from '../../app/utils/client/lib/SDKClient';
 import { afterLogoutCleanUpCallback } from '../../lib/callbacks/afterLogoutCleanUpCallback';
 import { capitalize, ltrim, rtrim } from '../../lib/utils/stringUtils';
 import { baseURI } from '../lib/baseURI';
+import { loginServices } from '../lib/loginServices';
 import { router } from '../providers/RouterProvider';
 
 const commands = {
@@ -19,10 +19,13 @@ const commands = {
 		}
 		const newUrl = new URL(`${rtrim(baseURI, '/')}/${ltrim(data.path, '/')}`);
 
-		const newParams = Array.from(newUrl.searchParams.entries()).reduce((ret, [key, value]) => {
-			ret[key] = value;
-			return ret;
-		}, {} as Record<string, string>);
+		const newParams = Array.from(newUrl.searchParams.entries()).reduce(
+			(ret, [key, value]) => {
+				ret[key] = value;
+				return ret;
+			},
+			{} as Record<string, string>,
+		);
 
 		const newPath = newUrl.pathname.replace(
 			new RegExp(`^${escapeRegExp(__meteor_runtime_config__.ROOT_URL_PATH_PREFIX)}`),
@@ -55,7 +58,7 @@ const commands = {
 		}
 
 		if (typeof data.service === 'string' && window.ServiceConfiguration) {
-			const customOauth = ServiceConfiguration.configurations.findOne({ service: data.service });
+			const customOauth = loginServices.getLoginService(data.service);
 
 			if (customOauth) {
 				const customLoginWith = (Meteor as any)[`loginWith${capitalize(customOauth.service, true)}`];

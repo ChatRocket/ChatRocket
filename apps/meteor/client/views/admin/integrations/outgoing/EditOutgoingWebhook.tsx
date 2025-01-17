@@ -1,45 +1,73 @@
-import type { IOutgoingIntegration, Serialized } from '@rocket.chat/core-typings';
+import type { IOutgoingIntegration, OutgoingIntegrationEvent, Serialized } from '@rocket.chat/core-typings';
 import { Button, ButtonGroup, Tabs, TabsItem } from '@rocket.chat/fuselage';
 import { useUniqueId } from '@rocket.chat/fuselage-hooks';
 import { useSetModal, useTranslation, useRouter, useRouteParameter } from '@rocket.chat/ui-contexts';
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 
+import OutgoingWebhookForm from './OutgoingWebhookForm';
 import GenericModal from '../../../../components/GenericModal';
 import { Page, PageHeader, PageScrollableContentWithShadow, PageFooter } from '../../../../components/Page';
 import { triggerWordsToArray, triggerWordsToString } from '../helpers/triggerWords';
 import { useCreateIntegration } from '../hooks/useCreateIntegration';
 import { useDeleteIntegration } from '../hooks/useDeleteIntegration';
 import { useUpdateIntegration } from '../hooks/useUpdateIntegration';
-import OutgoingWebhookForm from './OutgoingWebhookForm';
 
-const getInitialValue = (webhookData: Serialized<IOutgoingIntegration> | undefined, defaultToken: string) => ({
-	enabled: webhookData?.enabled || true,
-	impersonateUser: webhookData?.impersonateUser || false,
-	event: webhookData?.event || 'sendMessage',
+type EditOutgoingWebhookFormData = {
+	enabled: boolean;
+	impersonateUser: boolean;
+	event: OutgoingIntegrationEvent;
+	urls: string;
+	token: string;
+	triggerWords: string;
+	targetRoom: string;
+	channel: string;
+	username: string;
+	name: string;
+	alias: string;
+	avatar: string;
+	emoji: string;
+	scriptEnabled: boolean;
+	scriptEngine: 'isolated-vm';
+	script: string;
+	retryFailedCalls: boolean;
+	retryCount: number;
+	retryDelay: string;
+	triggerWordAnywhere: boolean;
+	runOnEdits: boolean;
+};
+
+const getInitialValue = (webhookData: Serialized<IOutgoingIntegration> | undefined, defaultToken: string): EditOutgoingWebhookFormData => ({
+	enabled: webhookData?.enabled ?? true,
+	impersonateUser: webhookData?.impersonateUser ?? false,
+	event: webhookData?.event ?? 'sendMessage',
 	urls: webhookData?.urls?.join('\n') ?? '',
-	token: webhookData?.token || defaultToken,
-	triggerWords: triggerWordsToString(webhookData?.triggerWords) || '',
-	targetRoom: webhookData?.targetRoom || '',
-	channel: webhookData?.channel.join(', ') || '',
-	username: webhookData?.username || '',
-	name: webhookData?.name || '',
-	alias: webhookData?.alias || '',
-	avatar: webhookData?.avatar || '',
-	emoji: webhookData?.emoji || '',
-	scriptEnabled: webhookData?.scriptEnabled || false,
-	scriptEngine: webhookData?.scriptEngine || 'isolated-vm',
-	script: webhookData?.script || '',
-	retryFailedCalls: webhookData?.retryFailedCalls || true,
-	retryCount: webhookData?.retryCount || 6,
-	retryDelay: webhookData?.retryDelay || 'powers-of-ten',
-	triggerWordAnywhere: webhookData?.triggerWordAnywhere || false,
-	runOnEdits: webhookData?.runOnEdits || true,
+	token: webhookData?.token ?? defaultToken,
+	triggerWords: triggerWordsToString(webhookData?.triggerWords) ?? '',
+	targetRoom: webhookData?.targetRoom ?? '',
+	channel: webhookData?.channel.join(', ') ?? '',
+	username: webhookData?.username ?? '',
+	name: webhookData?.name ?? '',
+	alias: webhookData?.alias ?? '',
+	avatar: webhookData?.avatar ?? '',
+	emoji: webhookData?.emoji ?? '',
+	scriptEnabled: webhookData?.scriptEnabled ?? false,
+	scriptEngine: webhookData?.scriptEngine ?? 'isolated-vm',
+	script: webhookData?.script ?? '',
+	retryFailedCalls: webhookData?.retryFailedCalls ?? true,
+	retryCount: webhookData?.retryCount ?? 6,
+	retryDelay: webhookData?.retryDelay ?? 'powers-of-ten',
+	triggerWordAnywhere: webhookData?.triggerWordAnywhere ?? false,
+	runOnEdits: webhookData?.runOnEdits ?? true,
 });
 
 const OUTGOING_TYPE = 'webhook-outgoing';
 
-const EditOutgoingWebhook = ({ webhookData }: { webhookData?: Serialized<IOutgoingIntegration> }) => {
+type EditOutgoingWebhookProps = {
+	webhookData?: Serialized<IOutgoingIntegration>;
+};
+
+const EditOutgoingWebhook = ({ webhookData }: EditOutgoingWebhookProps) => {
 	const t = useTranslation();
 	const setModal = useSetModal();
 	const router = useRouter();
@@ -48,7 +76,7 @@ const EditOutgoingWebhook = ({ webhookData }: { webhookData?: Serialized<IOutgoi
 
 	const defaultToken = useUniqueId();
 
-	const methods = useForm({ mode: 'onBlur', values: getInitialValue(webhookData, defaultToken) });
+	const methods = useForm<EditOutgoingWebhookFormData>({ mode: 'onBlur', values: getInitialValue(webhookData, defaultToken) });
 	const {
 		reset,
 		handleSubmit,
@@ -75,7 +103,7 @@ const EditOutgoingWebhook = ({ webhookData }: { webhookData?: Serialized<IOutgoi
 	const { urls, triggerWords } = watch();
 
 	const handleSave = useCallback(
-		async ({ ...formValues }) => {
+		async (formValues: EditOutgoingWebhookFormData) => {
 			if (webhookData?._id) {
 				return updateIntegration.mutate({
 					type: OUTGOING_TYPE,

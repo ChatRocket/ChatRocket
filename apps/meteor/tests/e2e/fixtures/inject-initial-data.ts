@@ -7,7 +7,12 @@ import { Users } from './userStates';
 export default async function injectInitialData() {
 	const connection = await MongoClient.connect(constants.URL_MONGODB);
 
-	const usersFixtures = [createUserFixture(Users.user1), createUserFixture(Users.user2), createUserFixture(Users.user3)];
+	const usersFixtures = [
+		createUserFixture(Users.user1),
+		createUserFixture(Users.user2),
+		createUserFixture(Users.user3),
+		createUserFixture(Users.userE2EE),
+	];
 
 	await Promise.all(
 		usersFixtures.map((user) =>
@@ -61,11 +66,15 @@ export default async function injectInitialData() {
 				_id: 'Accounts_OAuth_Google',
 				value: false,
 			},
+			{
+				_id: 'Livechat_Require_Contact_Verification',
+				value: 'never',
+			},
 		].map((setting) =>
 			connection
 				.db()
 				.collection('rocketchat_settings')
-				.updateOne({ _id: setting._id }, { $set: { value: setting.value } }),
+				.updateOne({ _id: setting._id as any }, { $set: { value: setting.value } }),
 		),
 	);
 

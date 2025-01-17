@@ -1,17 +1,19 @@
 import type { IIntegration, INewIncomingIntegration, IUpdateIncomingIntegration } from '@rocket.chat/core-typings';
-import { Integrations, Roles, Subscriptions, Users, Rooms } from '@rocket.chat/models';
+import type { ServerMethods } from '@rocket.chat/ddp-client';
+import { Integrations, Subscriptions, Users, Rooms } from '@rocket.chat/models';
 import { wrapExceptions } from '@rocket.chat/tools';
-import type { ServerMethods } from '@rocket.chat/ui-contexts';
 import { Babel } from 'meteor/babel-compiler';
 import { Meteor } from 'meteor/meteor';
 import _ from 'underscore';
 
+import { addUserRolesAsync } from '../../../../../server/lib/roles/addUserRoles';
 import { hasAllPermissionAsync, hasPermissionAsync } from '../../../../authorization/server/functions/hasPermission';
+import { notifyOnIntegrationChanged } from '../../../../lib/server/lib/notifyListener';
 import { isScriptEngineFrozen, validateScriptEngine } from '../../lib/validateScriptEngine';
 
 const validChannelChars = ['@', '#'];
 
-declare module '@rocket.chat/ui-contexts' {
+declare module '@rocket.chat/ddp-client' {
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	interface ServerMethods {
 		updateIncomingIntegration(
@@ -22,6 +24,7 @@ declare module '@rocket.chat/ui-contexts' {
 }
 
 Meteor.methods<ServerMethods>({
+	// eslint-disable-next-line complexity
 	async updateIncomingIntegration(integrationId, integration) {
 		if (!this.userId) {
 			throw new Meteor.Error('error-invalid-user', 'Invalid user', {
@@ -66,8 +69,8 @@ Meteor.methods<ServerMethods>({
 			});
 		}
 
-		const oldScriptEngine = currentIntegration.scriptEngine ?? 'vm2';
-		const scriptEngine = integration.scriptEngine ?? oldScriptEngine;
+		const oldScriptEngine = currentIntegration.scriptEngine;
+		const scriptEngine = integration.scriptEngine ?? oldScriptEngine ?? 'isolated-vm';
 		if (
 			integration.script?.trim() &&
 			(scriptEngine !== oldScriptEngine || integration.script?.trim() !== currentIntegration.script?.trim())
@@ -162,9 +165,9 @@ Meteor.methods<ServerMethods>({
 			});
 		}
 
-		await Roles.addUserRoles(user._id, ['bot']);
+		await addUserRolesAsync(user._id, ['bot']);
 
-		await Integrations.updateOne(
+		const updatedIntegration = await Integrations.findOneAndUpdate(
 			{ _id: integrationId },
 			{
 				$set: {
@@ -174,13 +177,14 @@ Meteor.methods<ServerMethods>({
 					emoji: integration.emoji,
 					alias: integration.alias,
 					channel: channels,
+					...('username' in integration && { username: integration.username }),
 					...(isFrozen
 						? {}
 						: {
 								script: integration.script,
 								scriptEnabled: integration.scriptEnabled,
 								scriptEngine,
-						  }),
+							}),
 					...(typeof integration.overrideDestinationChannelEnabled !== 'undefined' && {
 						overrideDestinationChannelEnabled: integration.overrideDestinationChannelEnabled,
 					}),
@@ -190,6 +194,10 @@ Meteor.methods<ServerMethods>({
 			},
 		);
 
-		return Integrations.findOneById(integrationId);
+		if (updatedIntegration) {
+			void notifyOnIntegrationChanged(updatedIntegration);
+		}
+
+		return updatedIntegration;
 	},
 });

@@ -11,11 +11,12 @@ import {
 	Select,
 	TextInput,
 	ToggleSwitch,
+	Box,
 } from '@rocket.chat/fuselage';
-import { useMutableCallback, useUniqueId } from '@rocket.chat/fuselage-hooks';
+import { useEffectEvent, useUniqueId } from '@rocket.chat/fuselage-hooks';
 import { useToastMessageDispatch, useMethod, useTranslation, useRouter } from '@rocket.chat/ui-contexts';
 import { useQueryClient } from '@tanstack/react-query';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { FormProvider, useForm, Controller } from 'react-hook-form';
 
 import {
@@ -28,6 +29,20 @@ import {
 } from '../../../components/Contextualbar';
 import { CustomFieldsAdditionalForm } from '../additionalForms';
 import { useRemoveCustomField } from './useRemoveCustomField';
+
+export type EditCustomFieldsFormData = {
+	field: string;
+	label: string;
+	scope: 'visitor' | 'room';
+	visibility: boolean;
+	searchable: boolean;
+	regexp: string;
+	type: string;
+	required: boolean;
+	defaultValue: string;
+	options: string;
+	public: boolean;
+};
 
 const getInitialValues = (customFieldData: Serialized<ILivechatCustomField> | undefined) => ({
 	field: customFieldData?._id || '',
@@ -52,7 +67,7 @@ const EditCustomFields = ({ customFieldData }: { customFieldData?: Serialized<IL
 
 	const handleDelete = useRemoveCustomField();
 
-	const methods = useForm({ mode: 'onBlur', values: getInitialValues(customFieldData) });
+	const methods = useForm<EditCustomFieldsFormData>({ mode: 'onBlur', values: getInitialValues(customFieldData) });
 	const {
 		control,
 		handleSubmit,
@@ -61,7 +76,7 @@ const EditCustomFields = ({ customFieldData }: { customFieldData?: Serialized<IL
 
 	const saveCustomField = useMethod('livechat:saveCustomField');
 
-	const handleSave = useMutableCallback(async ({ visibility, ...data }) => {
+	const handleSave = useEffectEvent(async ({ visibility, ...data }: EditCustomFieldsFormData) => {
 		try {
 			await saveCustomField(customFieldData?._id as unknown as string, {
 				visibility: visibility ? 'visible' : 'hidden',
@@ -69,7 +84,9 @@ const EditCustomFields = ({ customFieldData }: { customFieldData?: Serialized<IL
 			});
 
 			dispatchToastMessage({ type: 'success', message: t('Saved') });
-			queryClient.invalidateQueries(['livechat-customFields']);
+			queryClient.invalidateQueries({
+				queryKey: ['livechat-customFields'],
+			});
 			router.navigate('/omnichannel/customfields');
 		} catch (error) {
 			dispatchToastMessage({ type: 'error', message: error });
@@ -111,7 +128,7 @@ const EditCustomFields = ({ customFieldData }: { customFieldData?: Serialized<IL
 										name='field'
 										control={control}
 										rules={{
-											required: t('The_field_is_required', t('Field')),
+											required: t('Required_field', { field: t('Field') }),
 											validate: (value) => (!/^[0-9a-zA-Z-_]+$/.test(value) ? t('error-invalid-custom-field-name') : undefined),
 										}}
 										render={({ field }) => (
@@ -140,7 +157,7 @@ const EditCustomFields = ({ customFieldData }: { customFieldData?: Serialized<IL
 									<Controller
 										name='label'
 										control={control}
-										rules={{ required: t('The_field_is_required', t('Label')) }}
+										rules={{ required: t('Required_field', { field: t('Label') }) }}
 										render={({ field }) => (
 											<TextInput
 												id={labelField}
@@ -207,11 +224,13 @@ const EditCustomFields = ({ customFieldData }: { customFieldData?: Serialized<IL
 					</Button>
 				</ButtonGroup>
 				{customFieldData?._id && (
-					<ButtonGroup stretch mbs={8}>
-						<Button icon='trash' danger onClick={() => handleDelete(customFieldData._id)}>
-							{t('Delete')}
-						</Button>
-					</ButtonGroup>
+					<Box mbs={8}>
+						<ButtonGroup stretch>
+							<Button icon='trash' danger onClick={() => handleDelete(customFieldData._id)}>
+								{t('Delete')}
+							</Button>
+						</ButtonGroup>
+					</Box>
 				)}
 			</ContextualbarFooter>
 		</Contextualbar>

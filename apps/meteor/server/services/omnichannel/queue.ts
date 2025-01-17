@@ -1,16 +1,29 @@
-import type { InquiryWithAgentInfo, IOmnichannelQueue } from '@rocket.chat/core-typings';
+import { ServiceStarter } from '@rocket.chat/core-services';
+import { type InquiryWithAgentInfo, type IOmnichannelQueue } from '@rocket.chat/core-typings';
 import { License } from '@rocket.chat/license';
-import { LivechatInquiry } from '@rocket.chat/models';
+import { LivechatInquiry, LivechatRooms } from '@rocket.chat/models';
 
+import { queueLogger } from './logger';
+import { getOmniChatSortQuery } from '../../../app/livechat/lib/inquiries';
 import { dispatchAgentDelegated } from '../../../app/livechat/server/lib/Helper';
 import { RoutingManager } from '../../../app/livechat/server/lib/RoutingManager';
 import { getInquirySortMechanismSetting } from '../../../app/livechat/server/lib/settings';
 import { settings } from '../../../app/settings/server';
-import { queueLogger } from './logger';
 
 const DEFAULT_RACE_TIMEOUT = 5000;
 
 export class OmnichannelQueue implements IOmnichannelQueue {
+	private serviceStarter: ServiceStarter;
+
+	private timeoutHandler: ReturnType<typeof setTimeout> | null = null;
+
+	constructor() {
+		this.serviceStarter = new ServiceStarter(
+			() => this._start(),
+			() => this._stop(),
+		);
+	}
+
 	private running = false;
 
 	private queues: (string | undefined)[] = [];
@@ -24,7 +37,7 @@ export class OmnichannelQueue implements IOmnichannelQueue {
 		return this.running;
 	}
 
-	async start() {
+	private async _start() {
 		if (this.running) {
 			return;
 		}
@@ -37,11 +50,29 @@ export class OmnichannelQueue implements IOmnichannelQueue {
 		return this.execute();
 	}
 
-	async stop() {
+	private async _stop() {
+		if (!this.running) {
+			return;
+		}
+
 		await LivechatInquiry.unlockAll();
 
 		this.running = false;
+
+		if (this.timeoutHandler !== null) {
+			clearTimeout(this.timeoutHandler);
+			this.timeoutHandler = null;
+		}
+
 		queueLogger.info('Service stopped');
+	}
+
+	async start() {
+		return this.serviceStarter.start();
+	}
+
+	async stop() {
+		return this.serviceStarter.stop();
 	}
 
 	private async getActiveQueues() {
@@ -74,13 +105,15 @@ export class OmnichannelQueue implements IOmnichannelQueue {
 		const queueDelayTimeout = this.delay();
 		queueLogger.debug(`Executing queue ${queue || 'Public'} with timeout of ${queueDelayTimeout}`);
 
-		setTimeout(this.checkQueue.bind(this, queue), queueDelayTimeout);
+		void this.checkQueue(queue).catch((e) => {
+			queueLogger.error(e);
+		});
 	}
 
 	private async checkQueue(queue: string | undefined) {
 		queueLogger.debug(`Processing items for queue ${queue || 'Public'}`);
 		try {
-			const nextInquiry = await LivechatInquiry.findNextAndLock(getInquirySortMechanismSetting(), queue);
+			const nextInquiry = await LivechatInquiry.findNextAndLock(getOmniChatSortQuery(getInquirySortMechanismSetting()), queue);
 			if (!nextInquiry) {
 				queueLogger.debug(`No more items for queue ${queue || 'Public'}`);
 				return;
@@ -92,10 +125,19 @@ export class OmnichannelQueue implements IOmnichannelQueue {
 				// Note: this removes the "one-shot" behavior of queue, allowing it to take a conversation again in the future
 				// And sorting them by _updatedAt: -1 will make it so that the oldest inquiries are taken first
 				// preventing us from playing with the same inquiry over and over again
-				return await LivechatInquiry.unlockAndQueue(nextInquiry._id);
+				queueLogger.debug(`Inquiry ${nextInquiry._id} not taken. Unlocking and re-queueing`);
+				const updatedQueue = await LivechatInquiry.unlockAndQueue(nextInquiry._id);
+				return updatedQueue;
 			}
 
+			queueLogger.debug(`Inquiry ${nextInquiry._id} taken successfully. Unlocking`);
 			await LivechatInquiry.unlock(nextInquiry._id);
+			queueLogger.debug({
+				msg: 'Inquiry processed',
+				inquiry: nextInquiry._id,
+				queue: queue || 'Public',
+				result,
+			});
 		} catch (e) {
 			queueLogger.error({
 				msg: 'Error processing queue',
@@ -103,8 +145,19 @@ export class OmnichannelQueue implements IOmnichannelQueue {
 				err: e,
 			});
 		} finally {
-			void this.execute();
+			this.scheduleExecution();
 		}
+	}
+
+	private scheduleExecution(): void {
+		if (this.timeoutHandler !== null) {
+			return;
+		}
+
+		this.timeoutHandler = setTimeout(() => {
+			this.timeoutHandler = null;
+			return this.execute();
+		}, this.delay());
 	}
 
 	async shouldStart() {
@@ -116,24 +169,79 @@ export class OmnichannelQueue implements IOmnichannelQueue {
 		const routingSupportsAutoAssign = RoutingManager.getConfig()?.autoAssignAgent;
 		queueLogger.debug({
 			msg: 'Routing method supports auto assignment',
-			method: RoutingManager.methodName,
+			method: settings.get('Livechat_Routing_Method'),
 			status: routingSupportsAutoAssign ? 'Starting' : 'Stopping',
 		});
 
 		void (routingSupportsAutoAssign ? this.start() : this.stop());
 	}
 
+	private async reconciliation(reason: 'closed' | 'taken' | 'missing', { roomId, inquiryId }: { roomId: string; inquiryId: string }) {
+		switch (reason) {
+			case 'closed': {
+				queueLogger.debug({
+					msg: 'Room closed. Removing inquiry',
+					roomId,
+					inquiryId,
+					step: 'reconciliation',
+				});
+				await LivechatInquiry.removeByRoomId(roomId);
+				break;
+			}
+			case 'taken': {
+				queueLogger.debug({
+					msg: 'Room taken. Updating inquiry status',
+					roomId,
+					inquiryId,
+					step: 'reconciliation',
+				});
+				// Reconciliate served inquiries, by updating their status to taken after queue tried to pick and failed
+				await LivechatInquiry.takeInquiry(inquiryId);
+				break;
+			}
+			case 'missing': {
+				queueLogger.debug({
+					msg: 'Room from inquiry missing. Removing inquiry',
+					roomId,
+					inquiryId,
+					step: 'reconciliation',
+				});
+				await LivechatInquiry.removeByRoomId(roomId);
+				break;
+			}
+			default: {
+				return true;
+			}
+		}
+
+		return true;
+	}
+
 	private async processWaitingQueue(department: string | undefined, inquiry: InquiryWithAgentInfo) {
 		const queue = department || 'Public';
-		queueLogger.debug(`Processing items on queue ${queue}`);
 
 		queueLogger.debug(`Processing inquiry ${inquiry._id} from queue ${queue}`);
 		const { defaultAgent } = inquiry;
-		const room = await RoutingManager.delegateInquiry(inquiry, defaultAgent);
 
-		const propagateAgentDelegated = async (rid: string, agentId: string) => {
-			await dispatchAgentDelegated(rid, agentId);
-		};
+		const roomFromDb = await LivechatRooms.findOneById(inquiry.rid);
+
+		// This is a precaution to avoid taking inquiries tied to rooms that no longer exist.
+		// This should never happen.
+		if (!roomFromDb) {
+			return this.reconciliation('missing', { roomId: inquiry.rid, inquiryId: inquiry._id });
+		}
+
+		// This is a precaution to avoid taking the same inquiry multiple times. It should not happen, but it's a safety net
+		if (roomFromDb.servedBy) {
+			return this.reconciliation('taken', { roomId: inquiry.rid, inquiryId: inquiry._id });
+		}
+
+		// This is another precaution. If the room is closed, we should not take it
+		if (roomFromDb.closedAt) {
+			return this.reconciliation('closed', { roomId: inquiry.rid, inquiryId: inquiry._id });
+		}
+
+		const room = await RoutingManager.delegateInquiry(inquiry, defaultAgent, undefined, roomFromDb);
 
 		if (room?.servedBy) {
 			const {
@@ -142,13 +250,12 @@ export class OmnichannelQueue implements IOmnichannelQueue {
 			} = room;
 			queueLogger.debug(`Inquiry ${inquiry._id} taken successfully by agent ${agentId}. Notifying`);
 			setTimeout(() => {
-				void propagateAgentDelegated(rid, agentId);
+				void dispatchAgentDelegated(rid, agentId);
 			}, 1000);
 
 			return true;
 		}
 
-		queueLogger.debug(`Inquiry ${inquiry._id} not taken by any agent. Queueing again`);
 		return false;
 	}
 }

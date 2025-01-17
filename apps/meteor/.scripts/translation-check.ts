@@ -32,7 +32,7 @@ const parseFile = async (path: PathLike) => {
 				throw new SyntaxError(`Invalid JSON on file ${path}:${line}:${column}`);
 			}
 		}
-		throw new SyntaxError(`Invalid JSON on file ${path}: ${e.message}`);
+		throw new SyntaxError(`Invalid JSON on file ${path}: ${(e as Error).message}`);
 	}
 
 	if (hasDuplicatedKeys(content, json)) {
@@ -237,8 +237,8 @@ const checkFiles = async (sourceDirPath: string, sourceLng: string, fix = false)
 
 	for await (const { path, json, lng } of translations) {
 		await checkPlaceholdersFormat({ json, path, fix });
-		await checkMissingPlurals({ json, path, lng, fix });
 		await checkExceedingKeys({ json, path, lng, sourceJson, sourceLng, fix });
+		await checkMissingPlurals({ json, path, lng, fix });
 	}
 };
 

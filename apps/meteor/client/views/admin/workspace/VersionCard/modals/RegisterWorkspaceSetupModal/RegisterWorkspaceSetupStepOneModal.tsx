@@ -1,9 +1,8 @@
 import { Modal, Box, Field, FieldLabel, FieldRow, TextInput, CheckBox, ButtonGroup, Button } from '@rocket.chat/fuselage';
 import { useUniqueId } from '@rocket.chat/fuselage-hooks';
 import { ExternalLink } from '@rocket.chat/ui-client';
-import { useEndpoint, useSetModal, useToastMessageDispatch, useTranslation } from '@rocket.chat/ui-contexts';
-import React from 'react';
-import { Trans } from 'react-i18next';
+import { useEndpoint, useSetModal, useToastMessageDispatch } from '@rocket.chat/ui-contexts';
+import { useTranslation, Trans } from 'react-i18next';
 
 import WorkspaceRegistrationModal from '../RegisterWorkspaceModal';
 
@@ -32,7 +31,7 @@ const RegisterWorkspaceSetupStepOneModal = ({
 	...props
 }: Props) => {
 	const setModal = useSetModal();
-	const t = useTranslation();
+	const { t } = useTranslation();
 	const dispatchToastMessage = useToastMessageDispatch();
 
 	const createRegistrationIntent = useEndpoint('POST', '/v1/cloud.createRegistrationIntent');
@@ -92,10 +91,9 @@ const RegisterWorkspaceSetupStepOneModal = ({
 					</Box>
 					<Field>
 						<FieldRow justifyContent='initial'>
-							<FieldLabel fontScale='c1' htmlFor={termsField} pie={8}>
+							<FieldLabel display='block' fontScale='c1' htmlFor={termsField}>
 								<Trans i18nKey='RegisterWorkspace_Setup_Terms_Privacy'>
-									I agree with <ExternalLink to='https://rocket.chat/terms'>Terms and Conditions </ExternalLink>
-									and
+									I agree with <ExternalLink to='https://rocket.chat/terms'>Terms and Conditions</ExternalLink> and{' '}
 									<ExternalLink to='https://rocket.chat/privacy'>Privacy Policy</ExternalLink>
 								</Trans>
 							</FieldLabel>

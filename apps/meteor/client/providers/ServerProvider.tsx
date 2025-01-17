@@ -1,19 +1,18 @@
 import type { Serialized } from '@rocket.chat/core-typings';
-import type { Method, PathFor, OperationParams, OperationResult, UrlParams, PathPattern } from '@rocket.chat/rest-typings';
 import type {
 	ServerMethodName,
 	ServerMethodParameters,
 	ServerMethodReturn,
 	StreamerCallbackArgs,
-	UploadResult,
 	StreamNames,
 	StreamKeys,
-} from '@rocket.chat/ui-contexts';
+} from '@rocket.chat/ddp-client';
+import type { Method, PathFor, OperationParams, OperationResult, UrlParams, PathPattern } from '@rocket.chat/rest-typings';
+import type { UploadResult } from '@rocket.chat/ui-contexts';
 import { ServerContext } from '@rocket.chat/ui-contexts';
 import { Meteor } from 'meteor/meteor';
 import { compile } from 'path-to-regexp';
-import type { FC } from 'react';
-import React from 'react';
+import type { ReactNode } from 'react';
 
 import { sdk } from '../../app/utils/client/lib/SDKClient';
 import { Info as info } from '../../app/utils/rocketchat.info';
@@ -78,6 +77,8 @@ const contextValue = {
 	getStream,
 };
 
-const ServerProvider: FC = ({ children }) => <ServerContext.Provider children={children} value={contextValue} />;
+type ServerProviderProps = { children?: ReactNode };
+
+const ServerProvider = ({ children }: ServerProviderProps) => <ServerContext.Provider children={children} value={contextValue} />;
 
 export default ServerProvider;

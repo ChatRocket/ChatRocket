@@ -1,9 +1,9 @@
-import type { IRoom, IUser } from '@rocket.chat/core-typings';
+import type { IRoom, IUser, Serialized } from '@rocket.chat/core-typings';
 import { isRoomFederated } from '@rocket.chat/core-typings';
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
+import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
 import { escapeHTML } from '@rocket.chat/string-helpers';
 import { usePermission, useSetModal, useTranslation, useUser, useUserRoom, useUserSubscription } from '@rocket.chat/ui-contexts';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 
 import GenericModal from '../../../../../components/GenericModal';
 import { useEndpointAction } from '../../../../../hooks/useEndpointAction';
@@ -13,43 +13,44 @@ import RemoveUsersModal from '../../../../teams/contextualBar/members/RemoveUser
 import { getRoomDirectives } from '../../../lib/getRoomDirectives';
 import type { UserInfoAction } from '../useUserInfoActions';
 
-// TODO: Remove endpoint concatenation
 export const useRemoveUserAction = (
 	user: Pick<IUser, '_id' | 'username'>,
 	rid: IRoom['_id'],
 	reload?: () => void,
 ): UserInfoAction | undefined => {
-	const t = useTranslation();
 	const room = useUserRoom(rid);
-	const currentUser = useUser();
-	const subscription = useUserSubscription(rid);
-
-	const { _id: uid } = user;
 
 	if (!room) {
 		throw Error('Room not provided');
 	}
+
+	const t = useTranslation();
+	const currentUser = useUser();
+	const subscription = useUserSubscription(rid);
+
+	const { _id: uid } = user;
 
 	const hasPermissionToRemove = usePermission('remove-user', rid);
 	const userCanRemove = isRoomFederated(room)
 		? Federation.isEditableByTheUser(currentUser || undefined, room, subscription)
 		: hasPermissionToRemove;
 	const setModal = useSetModal();
-	const closeModal = useMutableCallback(() => setModal(null));
+	const closeModal = useEffectEvent(() => setModal(null));
 	const roomName = room?.t && escapeHTML(roomCoordinator.getRoomName(room.t, room));
 
-	const endpointPrefix = room.t === 'p' ? '/v1/groups' : '/v1/channels';
 	const { roomCanRemove } = getRoomDirectives({ room, showingUserId: uid, userSubscription: subscription });
 
 	const removeFromTeam = useEndpointAction('POST', '/v1/teams.removeMember', {
 		successMessage: t('User_has_been_removed_from_team'),
 	});
-	const removeFromRoom = useEndpointAction('POST', `${endpointPrefix}.kick`, {
+
+	const removeFromRoomEndpoint = room.t === 'p' ? '/v1/groups.kick' : '/v1/channels.kick';
+	const removeFromRoom = useEndpointAction('POST', removeFromRoomEndpoint, {
 		successMessage: t('User_has_been_removed_from_s', roomName),
 	});
 
-	const removeUserOptionAction = useMutableCallback(() => {
-		const handleRemoveFromTeam = async (rooms: IRoom[]): Promise<void> => {
+	const removeUserOptionAction = useEffectEvent(() => {
+		const handleRemoveFromTeam = async (rooms: Record<string, Serialized<IRoom>>): Promise<void> => {
 			if (room.teamId) {
 				const roomKeys = Object.keys(rooms);
 				await removeFromTeam({
@@ -96,7 +97,7 @@ export const useRemoveUserAction = (
 						onClick: removeUserOptionAction,
 						type: 'moderation' as const,
 						variant: 'danger' as const,
-				  }
+					}
 				: undefined,
 		[room, roomCanRemove, userCanRemove, removeUserOptionAction, t],
 	);

@@ -7,24 +7,16 @@ export class OmnichannelManageContact {
 		this.page = page;
 	}
 
-	get newContactTitle(): Locator {
-		return this.page.locator('h3 >> text="New contact"');
-	}
-
-	get editContactTitle(): Locator {
-		return this.page.locator('h3 >> text="Edit Contact Profile"');
-	}
-
 	get inputName(): Locator {
 		return this.page.locator('input[name=name]');
 	}
 
 	get inputEmail(): Locator {
-		return this.page.locator('input[name=email]');
+		return this.page.locator('input[name="emails.0.address"]');
 	}
 
 	get inputPhone(): Locator {
-		return this.page.locator('input[name=phone]');
+		return this.page.locator('input[name="phones.0.phoneNumber"]');
 	}
 
 	get inputContactManager(): Locator {
@@ -39,7 +31,15 @@ export class OmnichannelManageContact {
 		return this.page.locator('button >> text="Cancel"');
 	}
 
-	errorMessage(message: string): Locator {
-		return this.page.locator(`.rcx-field__error >> text="${message}"`);
+	get btnAddEmail(): Locator {
+		return this.page.locator('role=button[name="Add email"]');
+	}
+
+	get btnAddPhone(): Locator {
+		return this.page.locator('role=button[name="Add phone"]');
+	}
+
+	getErrorMessage(message: string): Locator {
+		return this.page.locator(`role=alert >> text="${message}"`);
 	}
 }

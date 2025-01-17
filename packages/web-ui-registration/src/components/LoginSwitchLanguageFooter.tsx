@@ -13,7 +13,7 @@ const useSuggestedLanguages = ({
 }) => {
 	const availableLanguages = useLanguages();
 	const currentLanguage = useLanguage();
-	const serverLanguage = normalizeLanguage(useSetting<string>('Language') || 'en');
+	const serverLanguage = normalizeLanguage(useSetting('Language', 'en'));
 
 	const suggestions = useMemo(() => {
 		const potentialLanguages = new Set([serverLanguage, browserLanguage, 'en'].map(normalizeLanguage));
@@ -61,8 +61,11 @@ const LoginSwitchLanguageFooter = ({
 		<HorizontalWizardLayoutCaption>
 			{suggestions.map((suggestion) => (
 				<Button secondary small mie={8} key={suggestion.key} onClick={handleSwitchLanguageClick(suggestion)}>
-					<Trans i18nKey='registration.component.switchLanguage' tOptions={{ lng: suggestion.key }}>
-						Change to <strong>{{ name: suggestion.ogName }}</strong>
+					<Trans i18nKey='registration.component.switchLanguage' tOptions={{ lng: suggestion.key }} values={{ name: suggestion.ogName }}>
+						Change to{' '}
+						<strong>
+							<>{suggestion.ogName}</>
+						</strong>
 					</Trans>
 				</Button>
 			))}

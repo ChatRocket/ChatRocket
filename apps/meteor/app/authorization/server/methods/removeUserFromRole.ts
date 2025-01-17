@@ -1,14 +1,15 @@
 import { api } from '@rocket.chat/core-services';
 import type { IRole, IUser } from '@rocket.chat/core-typings';
+import type { ServerMethods } from '@rocket.chat/ddp-client';
 import { Roles, Users } from '@rocket.chat/models';
-import type { ServerMethods } from '@rocket.chat/ui-contexts';
 import { Meteor } from 'meteor/meteor';
 
+import { removeUserFromRolesAsync } from '../../../../server/lib/roles/removeUserFromRoles';
 import { methodDeprecationLogger } from '../../../lib/server/lib/deprecationWarningLogger';
 import { settings } from '../../../settings/server';
 import { hasPermissionAsync } from '../functions/hasPermission';
 
-declare module '@rocket.chat/ui-contexts' {
+declare module '@rocket.chat/ddp-client' {
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	interface ServerMethods {
 		'authorization:removeUserFromRole'(roleId: IRole['_id'], username: IUser['username'], scope?: string): Promise<boolean>;
@@ -79,7 +80,7 @@ Meteor.methods<ServerMethods>({
 			}
 		}
 
-		const remove = await Roles.removeUserRoles(user._id, [role._id], scope);
+		const remove = await removeUserFromRolesAsync(user._id, [role._id], scope);
 		const event = {
 			type: 'removed',
 			_id: role._id,

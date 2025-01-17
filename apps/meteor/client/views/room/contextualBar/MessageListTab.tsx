@@ -4,7 +4,7 @@ import type { Keys as IconName } from '@rocket.chat/icons';
 import { useUserPreference } from '@rocket.chat/ui-contexts';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ReactElement, ReactNode } from 'react';
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 
 import { MessageTypes } from '../../../../app/ui-utils/client';
@@ -17,7 +17,7 @@ import {
 	ContextualbarClose,
 	ContextualbarEmptyContent,
 } from '../../../components/Contextualbar';
-import ScrollableContentWrapper from '../../../components/ScrollableContentWrapper';
+import { VirtuosoScrollbars } from '../../../components/CustomScrollbars';
 import RoomMessage from '../../../components/message/variants/RoomMessage';
 import SystemMessage from '../../../components/message/variants/SystemMessage';
 import { useFormatDate } from '../../../hooks/useFormatDate';
@@ -71,7 +71,7 @@ const MessageListTab = ({ iconName, title, emptyResultMessage, context, queryRes
 											totalCount={queryResult.data.length}
 											overscan={25}
 											data={queryResult.data}
-											components={{ Scroller: ScrollableContentWrapper }}
+											components={{ Scroller: VirtuosoScrollbars }}
 											itemContent={(index, message) => {
 												const previous = queryResult.data[index - 1];
 

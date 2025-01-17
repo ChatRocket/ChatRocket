@@ -1,14 +1,15 @@
 import { Button } from '@rocket.chat/fuselage';
-import { useRouteParameter, useRouter, useTranslation } from '@rocket.chat/ui-contexts';
-import React from 'react';
+import { useRouteParameter, useRouter } from '@rocket.chat/ui-contexts';
+import { useTranslation } from 'react-i18next';
 
-import { Page, PageHeader, PageContent } from '../../../components/Page';
 import CustomFieldsTable from './CustomFieldsTable';
 import EditCustomFields from './EditCustomFields';
 import EditCustomFieldsWithData from './EditCustomFieldsWithData';
+import { ContextualbarDialog } from '../../../components/Contextualbar';
+import { Page, PageHeader, PageContent } from '../../../components/Page';
 
 const CustomFieldsPage = () => {
-	const t = useTranslation();
+	const { t } = useTranslation();
 	const router = useRouter();
 
 	const context = useRouteParameter('context');
@@ -26,8 +27,12 @@ const CustomFieldsPage = () => {
 					<CustomFieldsTable />
 				</PageContent>
 			</Page>
-			{context === 'edit' && id && <EditCustomFieldsWithData customFieldId={id} />}
-			{context === 'new' && <EditCustomFields />}
+			{context && (
+				<ContextualbarDialog>
+					{context === 'edit' && id && <EditCustomFieldsWithData customFieldId={id} />}
+					{context === 'new' && <EditCustomFields />}
+				</ContextualbarDialog>
+			)}
 		</Page>
 	);
 };

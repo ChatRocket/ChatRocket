@@ -1,6 +1,5 @@
 import { useTranslation, useLayout, useCurrentRoutePath } from '@rocket.chat/ui-contexts';
-import type { FC } from 'react';
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { useSyncExternalStore } from 'use-sync-external-store/shim';
 
 import Sidebar from '../../../components/Sidebar';
@@ -8,7 +7,7 @@ import SidebarItemsAssemblerProps from '../../../components/Sidebar/SidebarItems
 import SettingsProvider from '../../../providers/SettingsProvider';
 import { getOmnichannelSidebarItems, subscribeToOmnichannelSidebarItems } from '../sidebarItems';
 
-const OmnichannelSidebar: FC = () => {
+const OmnichannelSidebar = () => {
 	const items = useSyncExternalStore(subscribeToOmnichannelSidebarItems, getOmnichannelSidebarItems);
 	const t = useTranslation();
 

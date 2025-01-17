@@ -1,23 +1,23 @@
 import type { IRoom, ISubscription } from '@rocket.chat/core-typings';
 import { css } from '@rocket.chat/css-in-js';
 import { Sidebar, TextInput, Box, Icon } from '@rocket.chat/fuselage';
-import { useMutableCallback, useDebouncedValue, useAutoFocus, useUniqueId, useMergedRefs } from '@rocket.chat/fuselage-hooks';
+import { useEffectEvent, useDebouncedValue, useAutoFocus, useUniqueId, useMergedRefs } from '@rocket.chat/fuselage-hooks';
 import { escapeRegExp } from '@rocket.chat/string-helpers';
 import { useUserPreference, useUserSubscriptions, useSetting, useTranslation, useMethod } from '@rocket.chat/ui-contexts';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
-import type { ReactElement, MutableRefObject, SetStateAction, Dispatch, FormEventHandler, Ref, MouseEventHandler } from 'react';
-import React, { forwardRef, useState, useMemo, useEffect, useRef } from 'react';
+import type { ReactElement, MutableRefObject, SetStateAction, Dispatch, FormEventHandler, Ref, MouseEventHandler, FormEvent } from 'react';
+import { forwardRef, useState, useMemo, useEffect, useRef } from 'react';
 import type { VirtuosoHandle } from 'react-virtuoso';
 import { Virtuoso } from 'react-virtuoso';
 import tinykeys from 'tinykeys';
 
+import Row from './Row';
+import { VirtuosoScrollbars } from '../../components/CustomScrollbars';
 import { getConfig } from '../../lib/utils/getConfig';
 import { useAvatarTemplate } from '../hooks/useAvatarTemplate';
 import { usePreventDefault } from '../hooks/usePreventDefault';
 import { useTemplateByViewMode } from '../hooks/useTemplateByViewMode';
-import Row from './Row';
-import ScrollerWithCustomProps from './ScrollerWithCustomProps';
 
 const mobileCheck = function () {
 	let check = false;
@@ -100,9 +100,10 @@ const useSearchItems = (filterText: string): UseQueryResult<(ISubscription & IRo
 
 	const getSpotlight = useMethod('spotlight');
 
-	return useQuery(
-		['sidebar/search/spotlight', name, usernamesFromClient, type, localRooms.map(({ _id }) => _id)],
-		async () => {
+	return useQuery({
+		queryKey: ['sidebar/search/spotlight', name, usernamesFromClient, type, localRooms.map(({ _id, name }) => _id + name)],
+
+		queryFn: async () => {
 			if (localRooms.length === LIMIT) {
 				return localRooms;
 			}
@@ -157,17 +158,15 @@ const useSearchItems = (filterText: string): UseQueryResult<(ISubscription & IRo
 			const exact = resultsFromServer?.filter((item) => [item.name, item.fname].includes(name));
 			return Array.from(new Set([...exact, ...localRooms, ...resultsFromServer]));
 		},
-		{
-			staleTime: 60_000,
-			keepPreviousData: true,
-			placeholderData: localRooms,
-		},
-	);
+
+		staleTime: 60_000,
+		placeholderData: (previousData) => previousData ?? localRooms,
+	});
 };
 
 const useInput = (initial: string): { value: string; onChange: FormEventHandler; setValue: Dispatch<SetStateAction<string>> } => {
 	const [value, setValue] = useState(initial);
-	const onChange = useMutableCallback((e) => {
+	const onChange = useEffectEvent((e: FormEvent<HTMLInputElement>) => {
 		setValue(e.currentTarget.value);
 	});
 	return { value, onChange, setValue };
@@ -232,7 +231,7 @@ const SearchList = forwardRef(function SearchList({ onClose }: SearchListProps, 
 		[avatarTemplate, extended, items, useRealName, sideBarItemTemplate, sidebarViewMode, t],
 	);
 
-	const changeSelection = useMutableCallback((dir) => {
+	const changeSelection = useEffectEvent((dir: 'up' | 'down') => {
 		let nextSelectedElement = null;
 
 		if (dir === 'up') {
@@ -254,7 +253,7 @@ const SearchList = forwardRef(function SearchList({ onClose }: SearchListProps, 
 		return selectedElement.current;
 	});
 
-	const resetCursor = useMutableCallback(() => {
+	const resetCursor = useEffectEvent(() => {
 		setTimeout(() => {
 			itemIndexRef.current = 0;
 			listRef.current?.scrollToIndex({ index: itemIndexRef.current });
@@ -338,15 +337,17 @@ const SearchList = forwardRef(function SearchList({ onClose }: SearchListProps, 
 			role='search'
 		>
 			<Sidebar.TopBar.Section {...({ flexShrink: 0 } as any)} is='form'>
-				<TextInput
-					aria-owns={listId}
-					data-qa='sidebar-search-input'
-					ref={autofocus}
-					{...filter}
-					placeholder={placeholder}
-					role='searchbox'
-					addon={<Icon name='cross' size='x20' onClick={onClose} />}
-				/>
+				<Box mb='x12' w='full'>
+					<TextInput
+						aria-owns={listId}
+						data-qa='sidebar-search-input'
+						ref={autofocus}
+						{...filter}
+						placeholder={placeholder}
+						role='searchbox'
+						addon={<Icon name='cross' size='x20' onClick={onClose} />}
+					/>
+				</Box>
 			</Sidebar.TopBar.Section>
 			<Box
 				ref={boxRef}
@@ -366,7 +367,7 @@ const SearchList = forwardRef(function SearchList({ onClose }: SearchListProps, 
 					style={{ height: '100%', width: '100%' }}
 					totalCount={items.length}
 					data={items}
-					components={{ Scroller: ScrollerWithCustomProps }}
+					components={{ Scroller: VirtuosoScrollbars }}
 					computeItemKey={(_, room) => room._id}
 					itemContent={(_, data): ReactElement => <Row data={itemData} item={data} />}
 					ref={listRef}

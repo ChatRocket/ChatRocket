@@ -1,8 +1,11 @@
-import { UserStatus, type ILivechatDepartment, type IUser } from '@rocket.chat/core-typings';
+import { faker } from '@faker-js/faker';
+import type { Credentials } from '@rocket.chat/api-client';
+import { UserStatus } from '@rocket.chat/core-typings';
+import type { ILivechatDepartment, IUser } from '@rocket.chat/core-typings';
 import { expect } from 'chai';
 import { after, before, describe, it } from 'mocha';
 
-import { getCredentials, request, api } from '../../../data/api-data';
+import { getCredentials, request, api, credentials } from '../../../data/api-data';
 import {
 	createAgent,
 	makeAgentAvailable,
@@ -14,7 +17,6 @@ import {
 } from '../../../data/livechat/rooms';
 import { sleep } from '../../../data/livechat/utils';
 import { updateSetting } from '../../../data/permissions.helper';
-import type { IUserCredentialsHeader } from '../../../data/user';
 import { password } from '../../../data/user';
 import { createUser, deleteUser, login, setUserActiveStatus, setUserStatus } from '../../../data/users.helper';
 import { IS_EE } from '../../../e2e/config/constants';
@@ -31,9 +33,11 @@ import { IS_EE } from '../../../e2e/config/constants';
 			await updateSetting('Livechat_Routing_Method', 'Auto_Selection');
 		});
 
-		let testUser: { user: IUser; credentials: IUserCredentialsHeader };
-		let testUser2: { user: IUser; credentials: IUserCredentialsHeader };
+		let testUser: { user: IUser; credentials: Credentials };
+		let testUser2: { user: IUser; credentials: Credentials };
+		let testUser3: { user: IUser; credentials: Credentials };
 		let testDepartment: ILivechatDepartment;
+		let visitorEmail: string;
 
 		before(async () => {
 			const user = await createUser();
@@ -60,13 +64,42 @@ import { IS_EE } from '../../../e2e/config/constants';
 		});
 
 		before(async () => {
-			testDepartment = await createDepartment([{ agentId: testUser.user._id }]);
+			const user = await createUser();
+			await createAgent(user.username);
+			const credentials3 = await login(user.username, password);
+			await makeAgentAvailable(credentials3);
+
+			testUser3 = {
+				user,
+				credentials: credentials3,
+			};
 		});
 
-		after(async () => {
-			await deleteUser(testUser.user);
-			await deleteUser(testUser2.user);
+		before(async () => {
+			testDepartment = await createDepartment([{ agentId: testUser.user._id }, { agentId: testUser3.user._id }]);
+			await updateSetting('Livechat_assign_new_conversation_to_bot', true);
+
+			const visitorName = faker.person.fullName();
+			visitorEmail = faker.internet.email().toLowerCase();
+			await request
+				.post(api('omnichannel/contacts'))
+				.set(credentials)
+				.send({
+					name: visitorName,
+					emails: [visitorEmail],
+					phones: [],
+					contactManager: testUser3.user._id,
+				});
 		});
+
+		after(async () =>
+			Promise.all([
+				deleteUser(testUser.user),
+				deleteUser(testUser2.user),
+				deleteUser(testUser3.user),
+				updateSetting('Livechat_assign_new_conversation_to_bot', false),
+			]),
+		);
 
 		it('should route a room to an available agent', async () => {
 			const visitor = await createVisitor(testDepartment._id);
@@ -91,12 +124,27 @@ import { IS_EE } from '../../../e2e/config/constants';
 			expect(roomInfo.servedBy).to.be.an('object');
 			expect(roomInfo.servedBy?._id).to.not.be.equal(testUser2.user._id);
 		});
+		(IS_EE ? it : it.skip)(
+			'should route to contact manager if it is online and Livechat_assign_new_conversation_to_bot is enabled',
+			async () => {
+				const visitor = await createVisitor(testDepartment._id, faker.person.fullName(), visitorEmail);
+				const room = await createLivechatRoom(visitor.token);
+
+				await sleep(5000);
+
+				const roomInfo = await getLivechatRoomInfo(room._id);
+
+				expect(roomInfo.servedBy).to.be.an('object');
+				expect(roomInfo.servedBy?._id).to.be.equal(testUser3.user._id);
+			},
+		);
 		it('should fail to start a conversation if there is noone available and Livechat_accept_chats_with_no_agents is false', async () => {
 			await updateSetting('Livechat_accept_chats_with_no_agents', false);
 			await makeAgentUnavailable(testUser.credentials);
+			await makeAgentUnavailable(testUser3.credentials);
 
 			const visitor = await createVisitor(testDepartment._id);
-			const { body } = await request.get(api(`livechat/room?token=${visitor.token}`)).expect(400);
+			const { body } = await request.get(api('livechat/room')).query({ token: visitor.token }).expect(400);
 			expect(body.error).to.be.equal('Sorry, no online agents [no-agent-online]');
 		});
 		it('should accept a conversation but not route to anyone when Livechat_accept_chats_with_no_agents is true', async () => {
@@ -147,14 +195,29 @@ import { IS_EE } from '../../../e2e/config/constants';
 			const roomInfo = await getLivechatRoomInfo(room._id);
 			expect(roomInfo.servedBy).to.be.undefined;
 		});
+		(IS_EE ? it : it.skip)(
+			'should route to another available agent if contact manager is unavailable and Livechat_assign_new_conversation_to_bot is enabled',
+			async () => {
+				await makeAgentAvailable(testUser.credentials);
+				const visitor = await createVisitor(testDepartment._id, faker.person.fullName(), visitorEmail);
+				const room = await createLivechatRoom(visitor.token);
+
+				await sleep(5000);
+
+				const roomInfo = await getLivechatRoomInfo(room._id);
+
+				expect(roomInfo.servedBy).to.be.an('object');
+				expect(roomInfo.servedBy?._id).to.be.equal(testUser.user._id);
+			},
+		);
 	});
 	describe('Load Balancing', () => {
 		before(async () => {
 			await updateSetting('Livechat_Routing_Method', 'Load_Balancing');
 		});
 
-		let testUser: { user: IUser; credentials: IUserCredentialsHeader };
-		let testUser2: { user: IUser; credentials: IUserCredentialsHeader };
+		let testUser: { user: IUser; credentials: Credentials };
+		let testUser2: { user: IUser; credentials: Credentials };
 		let testDepartment: ILivechatDepartment;
 
 		before(async () => {
@@ -242,8 +305,8 @@ import { IS_EE } from '../../../e2e/config/constants';
 			await updateSetting('Livechat_Routing_Method', 'Load_Rotation');
 		});
 
-		let testUser: { user: IUser; credentials: IUserCredentialsHeader };
-		let testUser2: { user: IUser; credentials: IUserCredentialsHeader };
+		let testUser: { user: IUser; credentials: Credentials };
+		let testUser2: { user: IUser; credentials: Credentials };
 		let testDepartment: ILivechatDepartment;
 
 		before(async () => {

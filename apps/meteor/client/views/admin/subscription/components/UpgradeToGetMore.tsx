@@ -1,5 +1,6 @@
 import { Box, States, StatesIcon, StatesTitle, StatesSubtitle, Button, ButtonGroup, CardGrid } from '@rocket.chat/fuselage';
-import React, { memo } from 'react';
+import type { ReactNode } from 'react';
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { GenericCard } from '../../../../components/GenericCard';
@@ -9,7 +10,7 @@ import { PRICING_LINK } from '../utils/links';
 type UpgradeToGetMoreProps = {
 	activeModules: string[];
 	isEnterprise: boolean;
-	children: React.ReactNode;
+	children: ReactNode;
 };
 
 const enterpriseModules = [
@@ -63,12 +64,14 @@ const UpgradeToGetMore = ({ activeModules, children }: UpgradeToGetMoreProps) =>
 					return <GenericCard key={index} icon='check' type='success' height='full' {...card} />;
 				})}
 			</CardGrid>
-			<ButtonGroup large vertical pbs={24}>
-				<Button icon='new-window' onClick={() => handleOpenLink(PRICING_LINK)} role='link'>
-					{t('Compare_plans')}
-				</Button>
-				{children}
-			</ButtonGroup>
+			<Box pbs={24}>
+				<ButtonGroup large vertical>
+					<Button icon='new-window' onClick={() => handleOpenLink(PRICING_LINK)} role='link'>
+						{t('Compare_plans')}
+					</Button>
+					{children}
+				</ButtonGroup>
+			</Box>
 		</Box>
 	);
 };

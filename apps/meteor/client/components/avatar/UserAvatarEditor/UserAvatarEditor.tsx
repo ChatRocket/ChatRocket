@@ -1,15 +1,17 @@
 import type { IUser, AvatarObject } from '@rocket.chat/core-typings';
-import { Box, Button, TextInput, Avatar, IconButton } from '@rocket.chat/fuselage';
-import { useToastMessageDispatch, useSetting, useTranslation } from '@rocket.chat/ui-contexts';
+import { Box, Button, Avatar, TextInput, IconButton, Label } from '@rocket.chat/fuselage';
+import { useUniqueId } from '@rocket.chat/fuselage-hooks';
+import { UserAvatar } from '@rocket.chat/ui-avatar';
+import { useToastMessageDispatch, useSetting } from '@rocket.chat/ui-contexts';
 import type { ReactElement, ChangeEvent } from 'react';
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { useSingleFileInput } from '../../../hooks/useSingleFileInput';
-import { isValidImageFormat } from '../../../lib/utils/isValidImageFormat';
-import UserAvatar from '../UserAvatar';
 import type { UserAvatarSuggestion } from './UserAvatarSuggestion';
 import UserAvatarSuggestions from './UserAvatarSuggestions';
 import { readFileAsDataURL } from './readFileAsDataURL';
+import { useSingleFileInput } from '../../../hooks/useSingleFileInput';
+import { isValidImageFormat } from '../../../lib/utils/isValidImageFormat';
 
 type UserAvatarEditorProps = {
 	currentUsername: IUser['username'];
@@ -17,17 +19,20 @@ type UserAvatarEditorProps = {
 	setAvatarObj: (obj: AvatarObject) => void;
 	disabled?: boolean;
 	etag: IUser['avatarETag'];
+	name: IUser['name'];
 };
 
-function UserAvatarEditor({ currentUsername, username, setAvatarObj, disabled, etag }: UserAvatarEditorProps): ReactElement {
-	const t = useTranslation();
+function UserAvatarEditor({ currentUsername, username, setAvatarObj, name, disabled, etag }: UserAvatarEditorProps): ReactElement {
+	const { t } = useTranslation();
+	const useFullNameForDefaultAvatar = useSetting('UI_Use_Name_Avatar');
 	const rotateImages = useSetting('FileUpload_RotateImages');
 	const [avatarFromUrl, setAvatarFromUrl] = useState('');
 	const [newAvatarSource, setNewAvatarSource] = useState<string>();
+	const imageUrlField = useUniqueId();
 	const dispatchToastMessage = useToastMessageDispatch();
 
 	const setUploadedPreview = useCallback(
-		async (file, avatarObj) => {
+		async (file: File, avatarObj: AvatarObject) => {
 			setAvatarObj(avatarObj);
 			try {
 				const dataURL = await readFileAsDataURL(file);
@@ -44,13 +49,13 @@ function UserAvatarEditor({ currentUsername, username, setAvatarObj, disabled, e
 
 	const [clickUpload] = useSingleFileInput(setUploadedPreview);
 
-	const clickUrl = (): void => {
+	const handleAddUrl = (): void => {
 		setNewAvatarSource(avatarFromUrl);
 		setAvatarObj({ avatarUrl: avatarFromUrl });
 	};
 
 	const clickReset = (): void => {
-		setNewAvatarSource(`/avatar/%40${username}`);
+		setNewAvatarSource(`/avatar/%40${useFullNameForDefaultAvatar ? name : username}`);
 		setAvatarObj('reset');
 	};
 
@@ -75,17 +80,20 @@ function UserAvatarEditor({ currentUsername, username, setAvatarObj, disabled, e
 				<UserAvatar
 					size='x124'
 					url={url}
+					key={url}
+					data-qa-id='UserAvatarEditor'
 					username={currentUsername || ''}
 					etag={etag}
 					style={{
-						objectFit: 'contain',
 						imageOrientation: rotateImages ? 'from-image' : 'none',
+						objectFit: 'contain',
 					}}
+					onError={() => dispatchToastMessage({ type: 'error', message: t('error-invalid-image-url') })}
 				/>
 				<Box display='flex' flexDirection='column' flexGrow='1' justifyContent='space-between' mis={4}>
 					<Box display='flex' flexDirection='row' mbs='none'>
 						<Button square disabled={disabled} mi={4} title={t('Accounts_SetDefaultAvatar')} onClick={clickReset}>
-							<Avatar url={`/avatar/%40${username}`} />
+							<Avatar url={`/avatar/%40${useFullNameForDefaultAvatar ? name : username}`} />
 						</Button>
 						<IconButton icon='upload' secondary disabled={disabled} title={t('Upload')} mi={4} onClick={clickUpload} />
 						<IconButton
@@ -94,14 +102,17 @@ function UserAvatarEditor({ currentUsername, username, setAvatarObj, disabled, e
 							disabled={disabled || !avatarFromUrl}
 							title={t('Add_URL')}
 							mi={4}
-							onClick={clickUrl}
+							onClick={handleAddUrl}
 							data-qa-id='UserAvatarEditorSetAvatarLink'
 						/>
 						<UserAvatarSuggestions disabled={disabled} onSelectOne={handleSelectSuggestion} />
 					</Box>
-					<Box mis={4}>{t('Use_url_for_avatar')}</Box>
+					<Label htmlFor={imageUrlField} mis={4}>
+						{t('Use_url_for_avatar')}
+					</Label>
 					<TextInput
 						data-qa-id='UserAvatarEditorLink'
+						id={imageUrlField}
 						flexGrow={0}
 						placeholder={t('Use_url_for_avatar')}
 						value={avatarFromUrl}
