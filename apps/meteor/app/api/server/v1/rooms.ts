@@ -10,6 +10,7 @@ import {
 	isRoomsIsMemberProps,
 	isRoomsCleanHistoryProps,
 	isRoomsOpenProps,
+	isRoomsCloseProps,
 } from '@rocket.chat/rest-typings';
 import { Meteor } from 'meteor/meteor';
 
@@ -18,6 +19,7 @@ import { omit } from '../../../../lib/utils/omit';
 import * as dataExport from '../../../../server/lib/dataExport';
 import { eraseRoom } from '../../../../server/lib/eraseRoom';
 import { openRoom } from '../../../../server/lib/openRoom';
+import { hideRoomMethod } from '../../../../server/methods/hideRoom';
 import { muteUserInRoom } from '../../../../server/methods/muteUserInRoom';
 import { unmuteUserInRoom } from '../../../../server/methods/unmuteUserInRoom';
 import { canAccessRoomAsync, canAccessRoomIdAsync } from '../../../authorization/server/functions/canAccessRoom';
@@ -901,6 +903,40 @@ API.v1.addRoute(
 			const { roomId } = this.bodyParams;
 
 			await openRoom(this.userId, roomId);
+
+			return API.v1.success();
+		},
+	},
+);
+
+API.v1.addRoute(
+	'rooms.close',
+	{ authRequired: true, validateParams: isRoomsCloseProps },
+	{
+		async post() {
+			const { roomId } = this.bodyParams;
+
+			if (!(await canAccessRoomIdAsync(roomId, this.userId))) {
+				return API.v1.unauthorized();
+			}
+
+			const user = await Users.findOneById(this.userId, { projections: { username: 1 } });
+
+			if (!user) {
+				throw new Meteor.Error('error-invalid-user', 'Invalid user', { method: 'rooms.close' });
+			}
+
+			const subscription = await Subscriptions.findOneByRoomIdAndUserId(roomId, this.userId);
+
+			if (!subscription) {
+				return API.v1.failure(`The user is not subscribed to the room`);
+			}
+
+			if (!subscription.open) {
+				return API.v1.failure(`The room, ${subscription.name}, is already closed`);
+			}
+
+			await hideRoomMethod(this.userId, roomId);
 
 			return API.v1.success();
 		},
