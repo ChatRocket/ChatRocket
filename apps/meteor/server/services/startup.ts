@@ -31,16 +31,21 @@ import { UploadService } from './upload/service';
 import { UserService } from './user/service';
 import { VideoConfService } from './video-conference/service';
 import { VoipAsteriskService } from './voip-asterisk/service';
+import { StartupEEService } from '../../ee/app/license/server/startup';
+import { startFederationService } from '../../ee/server/startup/services';
 
 export const registerServices = async (): Promise<void> => {
 	const { db } = MongoInternals.defaultRemoteCollectionDriver().mongo;
 
+	api.registerService(new SettingsService());
+	api.registerService(new StartupEEService());
 	api.registerService(new AppsEngineService());
 	api.registerService(new AnalyticsService());
 	api.registerService(new AuthorizationLivechat());
 	api.registerService(new BannerService());
 	api.registerService(new CalendarService());
 	api.registerService(new LDAPService());
+
 	api.registerService(new MediaService());
 	api.registerService(new MeteorService());
 	api.registerService(new NPSService());
@@ -57,11 +62,13 @@ export const registerServices = async (): Promise<void> => {
 	api.registerService(new UploadService());
 	api.registerService(new MessageService());
 	api.registerService(new TranslationService());
-	api.registerService(new SettingsService());
 	api.registerService(new OmnichannelIntegrationService());
 	api.registerService(new ImportService());
 	api.registerService(new OmnichannelAnalyticsService());
 	api.registerService(new UserService());
+
+	// FIXME: This should be removed
+	await startFederationService();
 
 	// if the process is running in micro services mode we don't need to register services that will run separately
 	if (!isRunningMs()) {
@@ -78,4 +85,6 @@ export const registerServices = async (): Promise<void> => {
 		api.registerService(new QueueWorker(db, Logger));
 		api.registerService(new OmnichannelTranscript(Logger));
 	}
+
+	await api.start();
 };

@@ -13,16 +13,16 @@ import { MessageReadsService } from '../local-services/message-reads/service';
 import { VoipFreeSwitchService } from '../local-services/voip-freeswitch/service';
 
 // TODO consider registering these services only after a valid license is added
-api.registerService(new EnterpriseSettings());
-api.registerService(new LDAPEEService());
-api.registerService(new LicenseService());
-api.registerService(new MessageReadsService());
-api.registerService(new OmnichannelEE());
-api.registerService(new VoipFreeSwitchService());
+api.registerService(new EnterpriseSettings(), ['license']);
+api.registerService(new LDAPEEService(), ['license']);
+api.registerService(new LicenseService(), ['license']);
+api.registerService(new MessageReadsService(), ['license']);
+api.registerService(new OmnichannelEE(), ['license']);
+api.registerService(new VoipFreeSwitchService(), ['license']);
 
 // when not running micro services we want to start up the instance intercom
 if (!isRunningMs()) {
-	api.registerService(new InstanceService());
+	api.registerService(new InstanceService(), ['license']);
 }
 
 export const startFederationService = async (): Promise<void> => {
@@ -30,7 +30,7 @@ export const startFederationService = async (): Promise<void> => {
 
 	if (!License.hasValidLicense()) {
 		federationService = await FederationService.createFederationService();
-		api.registerService(federationService);
+		api.registerService(federationService, ['license']);
 	}
 
 	void License.onLicense('federation', async () => {
@@ -38,6 +38,6 @@ export const startFederationService = async (): Promise<void> => {
 		if (federationService) {
 			await api.destroyService(federationService);
 		}
-		api.registerService(federationServiceEE);
+		api.registerService(federationServiceEE, ['license']);
 	});
 };
