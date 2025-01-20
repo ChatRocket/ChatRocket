@@ -4,7 +4,6 @@ import type { ReactNode } from 'react';
 import { useCustomSound } from './useCustomSound';
 import { CustomSoundContext } from '../CustomSoundContext';
 
-// Mock CustomSounds class core functionality
 const mockCustomSounds = {
 	play: jest.fn().mockImplementation(() => Promise.resolve(new Audio())),
 	pause: jest.fn(),
