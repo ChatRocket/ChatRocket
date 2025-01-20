@@ -7895,7 +7895,6 @@ __metadata:
     typescript: "npm:~5.7.2"
   peerDependencies:
     "@rocket.chat/apps-engine": 1.48.1
-    "@rocket.chat/apps-engine": 1.48.1
     "@rocket.chat/eslint-config": 0.7.0
     "@rocket.chat/fuselage": "*"
     "@rocket.chat/fuselage-hooks": "*"
@@ -9339,7 +9338,6 @@ __metadata:
     "@rocket.chat/fuselage-hooks": "npm:^0.34.1"
     "@rocket.chat/i18n": "workspace:~"
     "@rocket.chat/jest-presets": "workspace:^"
-    "@rocket.chat/mock-providers": "workspace:^"
     "@rocket.chat/password-policies": "workspace:^"
     "@rocket.chat/rest-typings": "workspace:^"
     "@testing-library/react": "npm:~16.0.1"
