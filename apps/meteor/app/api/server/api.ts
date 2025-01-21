@@ -1149,7 +1149,7 @@ const defaultOptionsEndpoint = async function _defaultOptionsEndpoint(this: Rest
 	this.done();
 };
 
-const createApi = function _createApi(options: { version?: string } = {}): APIClass {
+const createApi = function _createApi(options: { version?: string; useDefaultAuth?: true } = {}): APIClass {
 	return new APIClass({
 		apiPath: 'api/',
 		useDefaultAuth: false,
@@ -1192,6 +1192,7 @@ export const API: {
 	ApiClass: APIClass,
 	v1: createApi({
 		version: 'v1',
+		useDefaultAuth: true,
 	}),
 	default: createApi(),
 };
