@@ -18,7 +18,6 @@ import _ from 'underscore';
 import type { PermissionsPayload } from './api.helpers';
 import { checkPermissionsForInvocation, checkPermissions, parseDeprecation } from './api.helpers';
 import type {
-	ActionOperations,
 	FailureResult,
 	ForbiddenResult,
 	InternalError,
@@ -535,11 +534,44 @@ export class APIClass<
 		return this;
 	}
 
-	addTypedRoute<
-		TSubPathPattern extends string,
-		TOptions extends Options,
-		Operations extends ActionOperations<JoinPathPattern<TBasePath, TSubPathPattern>, TOptions>,
-	>(_subpath: TSubPathPattern, _operations: Operations): APIClass<TBasePath, TOperations & ConvertActionOperationsToMethods<Operations>> {
+	post<TSubPathPattern extends string, TOptions extends TypedOptions, TPathPattern extends `${TBasePath}/${TSubPathPattern}`>(
+		subpath: TSubPathPattern,
+		options: TOptions,
+		action: TypedAction<TOptions>,
+	): APIClass<
+		TBasePath,
+		| TOperations
+		| ({
+				method: 'POST';
+				path: TPathPattern;
+		  } & Omit<TOptions, 'response'>)
+	> {
+		const path = `${this._config.apiPath}/${subpath}`.replace('//', '/') as TPathPattern;
+		this.addRoute([path], options, action as any);
+		this.typedRoutes = this.typedRoutes || {};
+		this.typedRoutes[path] = this.typedRoutes[subpath] || {};
+		const { query, authRequired, response, body, ...rest } = options;
+		this.typedRoutes[path].post = {
+			...rest,
+			...(response && {
+				responses: {
+					200: {
+						content: {
+							'application/json': 'schema' in response[200] ? { schema: response[200].schema } : response[200],
+						},
+					},
+				},
+			}),
+			...(query && { query: query.schema }),
+			...(body && { body: body.schema }),
+			...(authRequired && {
+				security: [
+					{
+						bearerAuth: [],
+					},
+				],
+			}),
+		};
 		return this;
 	}
 

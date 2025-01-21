@@ -197,9 +197,11 @@ type Action<TMethod extends Method, TPathPattern extends PathPattern, TOptions> 
 	| ((this: ActionThis<TMethod, TPathPattern, TOptions>) => Promise<ResultFor<TMethod, TPathPattern>>)
 	| ((this: ActionThis<TMethod, TPathPattern, TOptions>) => ResultFor<TMethod, TPathPattern>);
 
-type Operation<TMethod extends Method, TPathPattern extends PathPattern, TEndpointOptions extends Options = object> =
+type Operation<TMethod extends Method, TPathPattern extends PathPattern, TEndpointOptions> =
 	| Action<TMethod, TPathPattern, TEndpointOptions>
-	| ActionOperation<TMethod, TPathPattern, TEndpointOptions>;
+	| ({
+			action: Action<TMethod, TPathPattern, TEndpointOptions>;
+	  } & { twoFactorRequired: boolean });
 
 type ActionOperation<TMethod extends Method, TPathPattern extends PathPattern, TEndpointOptions extends Options = object> = {
 	action: Action<TMethod, TPathPattern, TEndpointOptions>;
@@ -222,10 +224,12 @@ export type TypedOptions = {
 		200: ValidateFunction | object;
 	};
 	query?: ValidateFunction;
+	body?: ValidateFunction;
 	authRequired?: boolean;
 };
 
 type TypedThis<TOptions extends TypedOptions> = {
+	userId: TOptions['authRequired'] extends true ? string : string | undefined;
 	queryParams: TOptions['query'] extends ValidateFunction<infer Query> ? Query : never;
 	parseJsonQuery(): Promise<{
 		sort: Record<string, 1 | -1>;
@@ -238,6 +242,7 @@ type TypedThis<TOptions extends TypedOptions> = {
 		 */
 		query: Record<string, unknown>;
 	}>;
+	bodyParams: TOptions['body'] extends ValidateFunction<infer Body> ? Body : never;
 };
 
 type PromiseOrValue<T> = T | Promise<T>;
