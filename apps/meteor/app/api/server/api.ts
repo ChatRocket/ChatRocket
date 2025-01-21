@@ -26,6 +26,8 @@ import type {
 	Options,
 	PartialThis,
 	SuccessResult,
+	TypedAction,
+	TypedOptions,
 	UnauthorizedResult,
 } from './definition';
 import { getUserInfo } from './helpers/getUserInfo';
@@ -137,7 +139,14 @@ const generateConnection = (
 
 let prometheusAPIUserAgent = false;
 
-export class APIClass<TBasePath extends string = ''> extends Restivus {
+export class APIClass<
+	TBasePath extends string = '',
+	TOperations extends {
+		[x: string]: unknown;
+	} = {},
+> extends Restivus {
+	public typedRoutes: Record<string, Record<string, unknown>> = {};
+
 	protected apiPath?: string;
 
 	public authMethods: ((...args: any[]) => any)[];
@@ -482,6 +491,88 @@ export class APIClass<TBasePath extends string = ''> extends Restivus {
 		const routeActions: string[] = Array.isArray(endpoints) ? endpoints : Object.keys(endpoints);
 
 		return routeActions.map((action) => this.getFullRouteName(route, action, apiVersion));
+	}
+
+	get<TSubPathPattern extends string, TOptions extends TypedOptions, TPathPattern extends `${TBasePath}/${TSubPathPattern}`>(
+		subpath: TSubPathPattern,
+		options: TOptions,
+		action: TypedAction<TOptions>,
+	): APIClass<
+		TBasePath,
+		| TOperations
+		| ({
+				method: 'GET';
+				path: TPathPattern;
+				// response: { 200: { body: ReturnType<TypedAction<TOptions>> } };
+		  } & Omit<TOptions, 'response'>)
+	> {
+		const path = `${this._config.apiPath}/${subpath}`.replace('//', '/') as TPathPattern;
+		this.addRoute([path], options, action as any);
+		this.typedRoutes = this.typedRoutes || {};
+		this.typedRoutes[path] = this.typedRoutes[subpath] || {};
+		const { query, authRequired, response, ...rest } = options;
+		this.typedRoutes[path].get = {
+			...rest,
+			...(response && {
+				responses: {
+					200: {
+						content: {
+							'application/json': 'schema' in response[200] ? { schema: response[200].schema } : response[200],
+						},
+					},
+				},
+			}),
+			...(query && { query: query.schema }),
+			...(authRequired && {
+				security: [
+					{
+						bearerAuth: [],
+					},
+				],
+			}),
+		};
+		return this;
+	}
+
+	post<TSubPathPattern extends string, TOptions extends TypedOptions, TPathPattern extends `${TBasePath}/${TSubPathPattern}`>(
+		subpath: TSubPathPattern,
+		options: TOptions,
+		action: TypedAction<TOptions>,
+	): APIClass<
+		TBasePath,
+		| TOperations
+		| ({
+				method: 'POST';
+				path: TPathPattern;
+		  } & Omit<TOptions, 'response'>)
+	> {
+		const path = `${this._config.apiPath}/${subpath}`.replace('//', '/') as TPathPattern;
+		this.addRoute([path], options, action as any);
+		this.typedRoutes = this.typedRoutes || {};
+		this.typedRoutes[path] = this.typedRoutes[subpath] || {};
+		const { query, authRequired, response, body, ...rest } = options;
+		this.typedRoutes[path].post = {
+			...rest,
+			...(response && {
+				responses: {
+					200: {
+						content: {
+							'application/json': 'schema' in response[200] ? { schema: response[200].schema } : response[200],
+						},
+					},
+				},
+			}),
+			...(query && { query: query.schema }),
+			...(body && { body: body.schema }),
+			...(authRequired && {
+				security: [
+					{
+						bearerAuth: [],
+					},
+				],
+			}),
+		};
+		return this;
 	}
 
 	addRoute<TSubPathPattern extends string>(
@@ -1058,19 +1149,15 @@ const defaultOptionsEndpoint = async function _defaultOptionsEndpoint(this: Rest
 	this.done();
 };
 
-const createApi = function _createApi(options: { version?: string } = {}): APIClass {
-	return new APIClass(
-		Object.assign(
-			{
-				apiPath: 'api/',
-				useDefaultAuth: true,
-				prettyJson: process.env.NODE_ENV === 'development',
-				defaultOptionsEndpoint,
-				auth: getUserAuth(),
-			},
-			options,
-		) as IAPIProperties,
-	);
+const createApi = function _createApi(options: { version?: string; useDefaultAuth?: true } = {}): APIClass {
+	return new APIClass({
+		apiPath: 'api/',
+		useDefaultAuth: false,
+		prettyJson: process.env.NODE_ENV === 'development',
+		defaultOptionsEndpoint,
+		auth: getUserAuth(),
+		...options,
+	});
 };
 
 export const API: {
@@ -1105,18 +1192,19 @@ export const API: {
 	ApiClass: APIClass,
 	v1: createApi({
 		version: 'v1',
+		useDefaultAuth: true,
 	}),
 	default: createApi(),
 };
 
 // register the API to be re-created once the CORS-setting changes.
-settings.watchMultiple(['API_Enable_CORS', 'API_CORS_Origin'], () => {
-	API.v1 = createApi({
-		version: 'v1',
-	});
+// settings.watchMultiple(['API_Enable_CORS', 'API_CORS_Origin'], () => {
+// 	API.v1 = createApi({
+// 		version: 'v1',
+// 	});
 
-	API.default = createApi();
-});
+// 	API.default = createApi();
+// });
 
 settings.watch<string>('Accounts_CustomFields', (value) => {
 	if (!value) {

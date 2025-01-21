@@ -4,6 +4,7 @@ import type { Method, MethodOf, OperationParams, OperationResult, PathPattern, U
 import type { ValidateFunction } from 'ajv';
 import type { Request, Response } from 'express';
 
+import type { APIClass } from './api';
 import type { ITwoFactorOptions } from '../../2fa/server/code';
 
 export type SuccessResult<T> = {
@@ -202,6 +203,52 @@ type Operation<TMethod extends Method, TPathPattern extends PathPattern, TEndpoi
 			action: Action<TMethod, TPathPattern, TEndpointOptions>;
 	  } & { twoFactorRequired: boolean });
 
+type ActionOperation<TMethod extends Method, TPathPattern extends PathPattern, TEndpointOptions extends Options = object> = {
+	action: Action<TMethod, TPathPattern, TEndpointOptions>;
+} & TEndpointOptions;
+
 export type Operations<TPathPattern extends PathPattern, TOptions extends Options = object> = {
 	[M in MethodOf<TPathPattern> as Lowercase<M>]: Operation<Uppercase<M>, TPathPattern, TOptions>;
 };
+
+export type ActionOperations<TPathPattern extends PathPattern, TOptions extends Options = object> = {
+	[M in MethodOf<TPathPattern> as Lowercase<M>]: ActionOperation<Uppercase<M>, TPathPattern, TOptions>;
+};
+
+type Prettify<T> = {
+	[K in keyof T]: T[K];
+} & {};
+
+export type TypedOptions = {
+	response: {
+		200: ValidateFunction | object;
+	};
+	query?: ValidateFunction;
+	body?: ValidateFunction;
+	authRequired?: boolean;
+};
+
+type TypedThis<TOptions extends TypedOptions> = {
+	userId: TOptions['authRequired'] extends true ? string : string | undefined;
+	queryParams: TOptions['query'] extends ValidateFunction<infer Query> ? Query : never;
+	parseJsonQuery(): Promise<{
+		sort: Record<string, 1 | -1>;
+		/**
+		 * @deprecated To access "fields" parameter, use ALLOW_UNSAFE_QUERY_AND_FIELDS_API_PARAMS environment variable.
+		 */
+		fields: Record<string, 0 | 1>;
+		/**
+		 * @deprecated To access "query" parameter, use ALLOW_UNSAFE_QUERY_AND_FIELDS_API_PARAMS environment variable.
+		 */
+		query: Record<string, unknown>;
+	}>;
+	bodyParams: TOptions['body'] extends ValidateFunction<infer Body> ? Body : never;
+};
+
+type PromiseOrValue<T> = T | Promise<T>;
+
+export type TypedAction<TOptions extends TypedOptions> = (
+	this: TypedThis<TOptions>,
+) => PromiseOrValue<SuccessResult<TOptions['response'][200] extends ValidateFunction<infer T> ? T : never>>;
+
+export type ExtractEndpoints<R extends APIClass> = R extends APIClass<any, infer Endpoints> ? Prettify<Endpoints> : never;
